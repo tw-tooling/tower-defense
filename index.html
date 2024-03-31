@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tower Defense</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+// Initialization
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const towers = [];
+const monsters = [];
+let lastTime = 0;
+
+// Game parameters
+const monsterPath = [{x: 0, y: 300}, {x: 800, y: 300}];
+let spawnInterval = 1000;
+let lastSpawn = -spawnInterval;
+let lifes = 10;
+let monsterKilled = 0;
+let money = 100;
+let currentSlectedTower = 0;
+
+class Tower {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.lastShot = 0;
+        this.currentEnemies = [];
+    }
+}
+
+class BaseTower extends Tower {
+    constructor(x, y) {
+        super(x, y);
+        this.cost = 10;
+        this.range = 100;
+        this.fireRate = 3;
+        this.fireDuration = 0.1;
+        this.damage = 10;
+        this.maxEnemies = 1;
+        this.color = "blue";
+    }
+}
+
+class MultiTower extends Tower {
+    constructor(x, y) {
+        super(x, y);
+        this.cost = 20;
+        this.range = 150;
+        this.fireRate = 2;
+        this.fireDuration = 0.1;
+        this.damage = 8;
+        this.maxEnemies = 5;
+        this.color = "green";
+    }
+}
+
+
+const availableTowers = [BaseTower, MultiTower];
+
+
+
+// Function to place a tower
+function placeTower(x, y) {
+    if (money < 10) {
+        return;
+    }
+    if (towers.some(tower => Math.hypot(tower.x - x, tower.y - y) < 30)) {
+        return;
+    }
+    console.log("Placing tower", availableTowers[currentSlectedTower])
+    tower = new availableTowers[currentSlectedTower](x, y);
+    money -= tower.cost;
+    towers.push(tower);
+}
+
+// Function to draw towers
+function drawTowers() {
+    towers.forEach(tower => {
+        ctx.fillStyle = tower.color;
+        ctx.fillRect(tower.x - 10, tower.y - 10, 20, 20);
+        // lines to close towers
+        // towers.forEach(otherTower => {
+        //     if (Math.hypot(tower.x - otherTower.x, tower.y - otherTower.y) < 80) {
+        //         ctx.strokeStyle = "blue";
+        //         ctx.beginPath();
+        //         ctx.moveTo(tower.x, tower.y);
+        //         ctx.lineTo(otherTower.x, otherTower.y);
+        //         ctx.stroke();
+        //     }
+        // });
+    });
+}
+
+// Function to spawn monsters
+function spawnMonster(time) {
+    if (time - lastSpawn > spawnInterval) {
+        monsters.push({
+            x: monsterPath[0].x,
+            y: monsterPath[0].y,
+            speed: .1 + Math.random() * .1,
+            maxHealth: 100,
+            health: 100,
+            reward: 2,
+        });
+        lastSpawn = time;
+    }
+}
+
+// Function to draw monsters
+function drawMonsters() {
+    monsters.forEach(monster => {
+        ctx.beginPath();
+        const h = monster.health / monster.maxHealth;
+        ctx.fillStyle = `rgb(${(1-h)*200}, ${(1-h)*200}, ${(1-h)*200})`;
+        ctx.arc(monster.x, monster.y, 8, 0, 2 * Math.PI);
+        ctx.fill();
+    });
+}
+
+// Function to move monsters
+function moveMonsters(deltaTime) {
+    monsters.forEach(monster => {
+        monster.x += monster.speed * deltaTime;
+    });
+}
+
+function drawShots() {
+    towers.forEach(tower => {
+        tower.currentEnemies.forEach(enemy => {
+            ctx.strokeStyle = "red";
+            ctx.beginPath();
+            ctx.moveTo(tower.x, tower.y);
+            ctx.lineTo(enemy.x, enemy.y);
+            ctx.stroke();
+        });
+    });
+}
+
+
+function updateEnemies(time) {
+    towers.forEach(tower => {
+        // reset current enemies if fire duration has passed
+        if (tower.lastShot + tower.fireDuration * 1000 < time) {
+            tower.currentEnemies = [];
+        }
+        // fire shots
+        if (tower.lastShot + 1000 / tower.fireRate < time) {
+            tower.lastShot = time;
+            // update enemies
+            const enemiesInRange = monsters.filter(monster => Math.hypot(tower.x - monster.x, tower.y - monster.y) < tower.range);
+            enemiesInRange.sort((a, b) => Math.hypot(tower.x - a.x, tower.y - a.y) - Math.hypot(tower.x - b.x, tower.y - b.y));
+            tower.currentEnemies = enemiesInRange.slice(0, tower.maxEnemies);
+            // fire shots
+            tower.currentEnemies.forEach(enemy => {
+                enemy.health -= tower.damage;
+                if (enemy.health <= 0) {
+                    monsters.splice(monsters.indexOf(enemy), 1);
+                    money += enemy.reward;
+                    monsterKilled++;
+                    spawnInterval *= 0.99;
+                }
+            });
+        }
+    });
+}
+
+
+function monsterInGoal() {
+    monsters.forEach(monster => {
+        if (monster.x > monsterPath[1].x) {
+            monsters.splice(monsters.indexOf(monster), 1);
+            lifes--;
+        }
+    });
+}
+
+function drawStatus() {
+
+    // draw status
+    ctx.fillStyle = "black";
+    ctx.font = "20px Arial";
+    ctx.fillText("Lifes: " + lifes, 10, 30);
+    ctx.fillText("Money: " + money, 10, 60);
+    ctx.fillText("Killed: " + monsterKilled, 250, 30);
+
+    // draw available towers
+    ctx.fillText("Available towers: ", 10, 90);
+    for (let i = 0; i < availableTowers.length; i++) {
+        const sampleTower = new availableTowers[i](0, 0);
+        ctx.fillStyle = sampleTower.color;
+        ctx.fillRect(10 + i * 60, 100, 20, 20);
+        ctx.fillStyle = "black";
+        ctx.fillText(sampleTower.cost, 35 + i * 60, 117);
+        if (currentSlectedTower === i) {
+            ctx.strokeStyle = "black";
+            ctx.strokeRect(9 + i * 60, 99, 23, 23);
+        }
+    }
+    // draw status outline
+    ctx.strokeStyle = "black";
+    ctx.strokeRect(0, 0, 800, 150);
+}
+
+// Game loop
+function gameLoop(time) {
+    const deltaTime = time - lastTime;
+    lastTime = time;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    spawnMonster(time);
+    moveMonsters(deltaTime);
+    drawMonsters();
+    drawTowers();
+    updateEnemies(time);
+    drawShots();
+    monsterInGoal();
+    drawStatus();
+
+    requestAnimationFrame(gameLoop);
+}
+
+canvas.addEventListener('click', function(event) {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (x < 800 && y < 150) {
+        availableTowers.forEach((tower, index) => {
+            if (x > 10 + index * 60 && x < 30 + index * 60 && y > 100 && y < 120) {
+                currentSlectedTower = index;
+            }
+        });
+    } else {
+        placeTower(x, y);
+    }
+});
+
+requestAnimationFrame(gameLoop);
+    </script>
+</html>
