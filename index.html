@@ -24,8 +24,8 @@ const ctx = canvas.getContext("2d");
 const towers = [];
 const monsters = [];
 let lastTime = 0;
-const gridSizeX = 40;
-const gridSizeY = 24;
+const gridSizeX = 20;
+const gridSizeY = 12;
 const gridStartPixelX = 0;
 const gridStartPixelY = 150;
 const gridEndPixelX = ctx.canvas.width;
@@ -39,7 +39,7 @@ const monsterPath = {
     end: [{gridX: gridSizeX-1, gridY: Math.floor(gridSizeY/2)}],
 };
 fogSize = 4;
-let spawnInterval = 1000;
+let spawnInterval = 2000;
 let lastSpawn = -spawnInterval;
 let lifes = 10;
 let monsterKilled = 0;
@@ -130,6 +130,21 @@ class MultiTower extends BaseTower {
     }
 }
 
+class SpikeTower extends BaseTower {
+    constructor(x, y) {
+        super(x, y);
+        this.cost = 50;
+        this.range = 50;
+        this.fireRate = 10;
+        this.fireDuration = 0.05;
+        this.damage = 3;
+        this.maxMonsters = 1000;
+        this.color = "purple";
+        this.shotColor = "orange";
+        this.image.src = 'tiles/tower.png';
+    }
+}
+
 class SlowTower extends BaseTower {
     constructor(x, y) {
         super(x, y);
@@ -148,7 +163,7 @@ class SlowTower extends BaseTower {
 }
 
 
-const availableTowers = [RemoveTower, NoTower, SimpleTower, MultiTower, SlowTower];
+const availableTowers = [RemoveTower, NoTower, SimpleTower, MultiTower, SlowTower, SpikeTower];
 
 
 
@@ -179,7 +194,7 @@ class L2Monster extends BaseMonster {
         this.speed = .3;
         this.maxHealth = 50;
         this.health = 50;
-        this.reward = 4;
+        this.reward = 3;
         this.image.src = 'tiles/monster_L2.png';
         this.image_scale = 1.2;
     }
@@ -191,7 +206,7 @@ class L3Monster extends BaseMonster {
         this.speed = .07;
         this.maxHealth = 400;
         this.health = 400;
-        this.reward = 10;
+        this.reward = 6;
         this.image.src = 'tiles/monster_L3.png';
         this.image_scale = 2;
     }
@@ -203,7 +218,7 @@ class L4Monster extends BaseMonster {
         this.speed = .1;
         this.maxHealth = 400;
         this.health = 400;
-        this.reward = 20;
+        this.reward = 10;
         this.image.src = 'tiles/monster_L4.png';
         this.image_scale = 2;
     }
@@ -404,8 +419,10 @@ function spawnMonster(time) {
             monster = new L2Monster(x, y);
         } else if (monsterToSpawn < 0.9) {
             monster = new L3Monster(x, y);
-        } else {
+        } else if (monsterToSpawn < 0.98){
             monster = new L4Monster(x, y);
+        } else if (monsterToSpawn < 1) {
+            monster = new BossMonster(x, y);
         }
         // TODO: other monsters
         monsters.push(monster);
@@ -606,8 +623,8 @@ function gameLoop(time) {
     // drawGrid();
     spawnMonster(time);
     moveMonsters(time, deltaTime);
-    drawMonsters();
     drawTowers();
+    drawMonsters();
     updateMonsters(time);
     drawShots();
     monsterInGoal();
