@@ -54,11 +54,11 @@ function pixel2grid(x, y) {
     };
 }
 
-// get upper left corner of grid cell
+// get center of grid cell
 function grid2pixel(gridX, gridY) {
     return {
-        x: gridX * (gridEndPixelX - gridStartPixelX) / gridSizeX + gridStartPixelX,
-        y: gridY * (gridEndPixelY - gridStartPixelY) / gridSizeY + gridStartPixelY,
+        x: gridX * (gridEndPixelX - gridStartPixelX) / gridSizeX + gridStartPixelX + gridPixelSizeX / 2,
+        y: gridY * (gridEndPixelY - gridStartPixelY) / gridSizeY + gridStartPixelY + gridPixelSizeY / 2,
     };
 }
 
@@ -68,8 +68,8 @@ class BaseTower {
         this.gridX = gridX;
         this.gridY = gridY;
         const {x: x_, y: y_} = grid2pixel(gridX, gridY);
-        this.x = x_ + gridPixelSizeX / 2;
-        this.y = y_ + gridPixelSizeY / 2;
+        this.x = x_;
+        this.y = y_;
         this.lastShot = 0;
         this.currentEnemies = [];
     }
@@ -83,7 +83,7 @@ class NoTower extends BaseTower {
         this.fireRate = 0;
         this.fireDuration = 0;
         this.damage = 0;
-        this.maxEnemies = 0;
+        this.maxMonsters = 0;
         this.color = "black";
     }
 }
@@ -96,7 +96,7 @@ class SimpleTower extends BaseTower {
         this.fireRate = 3;
         this.fireDuration = 0.1;
         this.damage = 10;
-        this.maxEnemies = 1;
+        this.maxMonsters = 1;
         this.color = "blue";
     }
 }
@@ -109,7 +109,7 @@ class MultiTower extends BaseTower {
         this.fireRate = 2;
         this.fireDuration = 0.1;
         this.damage = 8;
-        this.maxEnemies = 5;
+        this.maxMonsters = 5;
         this.color = "green";
     }
 }
@@ -243,14 +243,18 @@ function placeTower(x, y) {
 function drawGrid() {
     ctx.strokeStyle = `rgba(0, 0, 0, 0.1)`;
     for (let i = 0; i <= gridSizeX; i++) {
-        const {x, y} = grid2pixel(i, 0);
+        let {x, y} = grid2pixel(i, 0);
+        x -= gridPixelSizeX / 2;
+        y -= gridPixelSizeY / 2;
         ctx.beginPath();
         ctx.moveTo(x, gridStartPixelY);
         ctx.lineTo(x, gridEndPixelY);
         ctx.stroke();
     }
     for (let i = 0; i <= gridSizeY; i++) {
-        const {x, y} = grid2pixel(0, i);
+        let {x, y} = grid2pixel(0, i);
+        x -= gridPixelSizeX / 2;
+        y -= gridPixelSizeY / 2;
         ctx.beginPath();
         ctx.moveTo(gridStartPixelX, y);
         ctx.lineTo(gridEndPixelX, y);
@@ -308,6 +312,7 @@ function moveMonsters(deltaTime) {
         monster.x += monster.speed * deltaTime * (destX - monster.x) / destDist;
         monster.y += monster.speed * deltaTime * (destY - monster.y) / destDist;
         // TODO: this might fail if speed or deltaTime is too high
+        // TODO: when moving diagonal the monsters sometimes (shortly) end up in neighboring tiles, which alters their movement
 
         // draw path for debugging
         // ctx.strokeStyle = "red";
@@ -321,36 +326,36 @@ function moveMonsters(deltaTime) {
 
 function drawShots() {
     towers.forEach(tower => {
-        tower.currentEnemies.forEach(enemy => {
+        tower.currentEnemies.forEach(monster => {
             ctx.strokeStyle = "red";
             ctx.beginPath();
             ctx.moveTo(tower.x, tower.y);
-            ctx.lineTo(enemy.x, enemy.y);
+            ctx.lineTo(monster.x, monster.y);
             ctx.stroke();
         });
     });
 }
 
 
-function updateEnemies(time) {
+function updateMonsters(time) {
     towers.forEach(tower => {
-        // reset current enemies if fire duration has passed
+        // reset current monsters if fire duration has passed
         if (tower.lastShot + tower.fireDuration * 1000 < time) {
-            tower.currentEnemies = [];
+            tower.currentMonsters = [];
         }
         // fire shots
         if (tower.lastShot + 1000 / tower.fireRate < time) {
             tower.lastShot = time;
-            // update enemies
-            const enemiesInRange = monsters.filter(monster => Math.hypot(tower.x - monster.x, tower.y - monster.y) < tower.range);
-            enemiesInRange.sort((a, b) => Math.hypot(tower.x - a.x, tower.y - a.y) - Math.hypot(tower.x - b.x, tower.y - b.y));
-            tower.currentEnemies = enemiesInRange.slice(0, tower.maxEnemies);
+            // update monsters
+            const monstersInRange = monsters.filter(monster => Math.hypot(tower.x - monster.x, tower.y - monster.y) < tower.range);
+            monstersInRange.sort((a, b) => Math.hypot(tower.x - a.x, tower.y - a.y) - Math.hypot(tower.x - b.x, tower.y - b.y));
+            tower.currentMonsters = monstersInRange.slice(0, tower.maxMonsters);
             // fire shots
-            tower.currentEnemies.forEach(enemy => {
-                enemy.health -= tower.damage;
-                if (enemy.health <= 0) {
-                    monsters.splice(monsters.indexOf(enemy), 1);
-                    money += enemy.reward;
+            tower.currentMonsters.forEach(monster => {
+                monster.health -= tower.damage;
+                if (monster.health <= 0) {
+                    monsters.splice(monsters.indexOf(monster), 1);
+                    money += monster.reward;
                     monsterKilled++;
                     spawnInterval *= 0.99;
                 }
@@ -374,14 +379,10 @@ function monsterInGoal() {
 function drawDirections() {
     for (let i = 0; i < gridSizeX; i++) {
         for (let j = 0; j < gridSizeY; j++) {
-            let {x, y} = grid2pixel(i, j);
-            x += gridPixelSizeX / 2;
-            y += gridPixelSizeY / 2;
+            const {x, y} = grid2pixel(i, j);
             const {x: nextX, y: nextY} = matrix.get(i, j);
             if (!isNaN(nextX) && nextX >= 0) {
-                let {x: nextX_, y: nextY_} = grid2pixel(nextX, nextY);
-                nextX_ += gridPixelSizeX / 2;
-                nextY_ += gridPixelSizeY / 2;
+                const {x: nextX_, y: nextY_} = grid2pixel(nextX, nextY);
                 ctx.strokeStyle = "red";
                 ctx.beginPath();
                 ctx.moveTo(x, y);
@@ -432,7 +433,7 @@ function gameLoop(time) {
     moveMonsters(deltaTime);
     drawMonsters();
     drawTowers();
-    updateEnemies(time);
+    updateMonsters(time);
     drawShots();
     monsterInGoal();
     drawStatus();
