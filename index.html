@@ -44,7 +44,7 @@ let lastSpawn = -spawnInterval;
 let lifes = 10;
 let monsterKilled = 0;
 let money = 100;
-let currentSlectedTower = 0;
+let currentSlectedTower = 2;
 
 
 // convert pixel to grid cell
@@ -73,13 +73,22 @@ class BaseTower {
         this.y = y_;
         this.lastShot = 0;
         this.currentMonsters = [];
+        this.image = new Image();
+    }
+}
+
+class RemoveTower {
+    constructor() {
+        this.color = "white";
+        this.image = new Image();
+        this.image.src = 'tiles/hammer.png';
     }
 }
 
 class NoTower extends BaseTower {
     constructor(x, y) {
         super(x, y);
-        this.cost = 0;
+        this.cost = 1;
         this.range = 0;
         this.fireRate = 0;
         this.fireDuration = 0;
@@ -87,7 +96,6 @@ class NoTower extends BaseTower {
         this.maxMonsters = 0;
         this.color = "black";  // TODO: remove
         this.shotColor = "black";  // TODO: remove
-        this.image = new Image();
         this.image.src = 'tiles/tower.png';
     }
 }
@@ -103,7 +111,6 @@ class SimpleTower extends BaseTower {
         this.maxMonsters = 1;
         this.color = "blue";
         this.shotColor = "red";
-        this.image = new Image();
         this.image.src = 'tiles/tower.png';
     }
 }
@@ -119,7 +126,6 @@ class MultiTower extends BaseTower {
         this.maxMonsters = 5;
         this.color = "green";
         this.shotColor = "orange";
-        this.image = new Image();
         this.image.src = 'tiles/tower.png';
     }
 }
@@ -136,14 +142,13 @@ class SlowTower extends BaseTower {
         this.slow = 0.5;
         this.slowDuration = 0.1;
         this.color = 'rgb(74, 146, 247)';
-        this.shotColor = 'rgb(74, 146, 247)';
-        this.image = new Image();
+        this.shotColor = 'rgb(103, 149, 235)';
         this.image.src = 'tiles/tower.png';
     }
 }
 
 
-const availableTowers = [NoTower, SimpleTower, MultiTower, SlowTower];
+const availableTowers = [RemoveTower, NoTower, SimpleTower, MultiTower, SlowTower];
 
 
 
@@ -235,6 +240,8 @@ class PathMatrix {
     }
 
     updatePaths() {
+        // TODO: maybe add distribution of paths with the same length, i.e. when a tile can be reached from multiple direction with the same distance, save all (so monsters can choose randomly)
+
         // clear matrix
         this.matrix.fill(NaN);
 
@@ -320,6 +327,22 @@ function isThreAPath(tower) {
 
 // Function to place a tower
 function placeTower(x, y) {
+
+    // remove tower tool
+    if (currentSlectedTower === 0) {
+        const {gridX, gridY} = pixel2grid(x, y);
+        for (let i = 0; i < towers.length; i++) {
+            const tower = towers[i];
+            if (tower.gridX === gridX && tower.gridY === gridY) {
+                towers.splice(i, 1);
+                money += tower.cost;
+                matrix.updatePaths();
+                return;
+            }
+        }
+        return;
+    }
+
     // init tower
     tower = new availableTowers[currentSlectedTower](x, y);
 
@@ -364,7 +387,7 @@ function drawTowers() {
     towers.forEach(tower => {
         ctx.fillStyle = tower.color;
         ctx.fillRect(tower.x - gridPixelSizeX/2, tower.y - gridPixelSizeY/2, gridPixelSizeX, gridPixelSizeY);
-        const s = 1.5 * gridPixelSizeX;
+        const s = 1.2 * gridPixelSizeX;
         ctx.drawImage(tower.image, tower.x-s/2, tower.y-s/2, s, s);
     });
 }
@@ -427,7 +450,6 @@ function moveMonsters(time, deltaTime) {
             // remove outdated slows
             return false;
         });
-        console.log(speed);
         monster.x += speed * deltaTime * (destX - monster.x) / destDist;
         monster.y += speed * deltaTime * (destY - monster.y) / destDist;
         // TODO: this might fail if speed or deltaTime is too high
@@ -560,8 +582,11 @@ function drawStatus() {
         const sampleTower = new availableTowers[i](0, 0);
         ctx.fillStyle = sampleTower.color;
         ctx.fillRect(10 + i * 60, 100, 20, 20);
-        ctx.fillStyle = "black";
-        ctx.fillText(sampleTower.cost, 35 + i * 60, 117);
+        ctx.drawImage(sampleTower.image, 10 + i * 60, 100, 20, 20);
+        if (sampleTower.cost) {
+            ctx.fillStyle = "black";
+            ctx.fillText(sampleTower.cost, 35 + i * 60, 117);
+        }
         if (currentSlectedTower === i) {
             ctx.strokeStyle = "black";
             ctx.strokeRect(9 + i * 60, 99, 23, 23);
@@ -608,6 +633,16 @@ canvas.addEventListener('click', function(event) {
     }
 });
 
+document.addEventListener('keydown', function(event) {
+    console.log(event.key);
+    new Array(availableTowers.length).fill(0).forEach((_, index) => {
+        if (event.key === index.toString()) {
+            currentSlectedTower = index;
+        }
+    });
+});
+
 requestAnimationFrame(gameLoop);
+
     </script>
 </html>
