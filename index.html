@@ -38,6 +38,7 @@ const monsterPath = {
     start: new Array(gridSizeY).fill(0).map((_, i) => ({gridX: 0, gridY: i})),
     end: [{gridX: gridSizeX-1, gridY: Math.floor(gridSizeY/2)}],
 };
+fogSize = 4;
 let spawnInterval = 1000;
 let lastSpawn = -spawnInterval;
 let lifes = 10;
@@ -138,60 +139,65 @@ class BaseMonster {
 class L1Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .1 + Math.random() * .1;
+        this.speed = .1;
         this.maxHealth = 100;
         this.health = 100;
         this.reward = 2;
         this.image = new Image();
         this.image.src = 'tiles/monster_L1.png';
+        this.image_scale = 1.5;
     }
 }
 
 class L2Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .1 + Math.random() * .1;
-        this.maxHealth = 200;
-        this.health = 200;
-        this.reward = 5;
+        this.speed = .3;
+        this.maxHealth = 50;
+        this.health = 50;
+        this.reward = 4;
         this.image = new Image();
         this.image.src = 'tiles/monster_L2.png';
+        this.image_scale = 1.2;
     }
 }
 
 class L3Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .1 + Math.random() * .1;
-        this.maxHealth = 300;
-        this.health = 300;
+        this.speed = .07;
+        this.maxHealth = 400;
+        this.health = 400;
         this.reward = 10;
         this.image = new Image();
         this.image.src = 'tiles/monster_L3.png';
+        this.image_scale = 2;
     }
 }
 
 class L4Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .1 + Math.random() * .1;
+        this.speed = .1;
         this.maxHealth = 400;
         this.health = 400;
         this.reward = 20;
         this.image = new Image();
         this.image.src = 'tiles/monster_L4.png';
+        this.image_scale = 2;
     }
 }
 
 class BossMonster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .1 + Math.random() * .1;
+        this.speed = 0.05;
         this.maxHealth = 1000;
         this.health = 1000;
         this.reward = 50;
         this.image = new Image();
         this.image.src = 'tiles/monster_boss.png';
+        this.image_scale = 3;
     }
 }
 
@@ -287,11 +293,29 @@ const matrix = new PathMatrix(gridSizeX, gridSizeY, 0, 0, gridSizeX-1, gridSizeY
 matrix.updatePaths();
 
 
+function isThreAPath(tower) {
+    towers.push(tower);
+    // TODO: it's not really nice to have `towers` as a global variable influencing the PathMatrix.updatePaths() function
+    tmp_matrix = new PathMatrix();
+    tmp_matrix.updatePaths();
+    const result = !monsterPath.start.some(({gridX, gridY}) => isNaN(tmp_matrix.get(gridX, gridY).x))
+    towers.pop();
+    return result;
+}
+
 // Function to place a tower
 function placeTower(x, y) {
+    // init tower
     tower = new availableTowers[currentSlectedTower](x, y);
-    if (money < tower.cost) return;
-    if (towers.some(t => t.x === tower.x && t.y === tower.y)) return;
+
+    // check if tower can be placed
+    if (money < tower.cost) return;  // not enough money
+    if (tower.gridX < fogSize) return;  // tower too close to start
+    if (monsterPath.end.some(({gridX, gridY}) => (gridX === tower.gridX && gridY === tower.gridY))) return;  // tower on end point
+    if (towers.some(t => t.x === tower.x && t.y === tower.y)) return;  // tower on tower
+    if (!isThreAPath(tower)) return;  // no path for monsters left
+
+    // place tower
     money -= tower.cost;
     towers.push(tower);
     matrix.updatePaths();
@@ -361,7 +385,7 @@ function drawMonsters() {
         // ctx.fill();
         
         // monster image
-        const s = 1.5 * gridPixelSizeX;
+        const s = monster.image_scale * gridPixelSizeX;
         ctx.drawImage(monster.image, monster.x-s/2, monster.y-s/2, s, s);
 
         // health bar
@@ -478,6 +502,19 @@ function drawDirections() {
 }
 
 
+// fog near the start. Grey gradient
+function drawStartFog() {
+    const gradient = ctx.createLinearGradient(gridStartPixelX, 0, gridStartPixelX + fogSize*gridPixelSizeX, 0);
+    gradient.addColorStop(0.00, "rgba(100, 100, 100, 1.00)");
+    gradient.addColorStop(0.25, "rgba(100, 100, 100, 0.85)");
+    gradient.addColorStop(0.50, "rgba(100, 100, 100, 0.65)");
+    gradient.addColorStop(0.75, "rgba(100, 100, 100, 0.40)");
+    gradient.addColorStop(1.00, "rgba(100, 100, 100, 0.00)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(gridStartPixelX, gridStartPixelY, fogSize*gridPixelSizeX, gridEndPixelY);
+}
+
+
 function drawStatus() {
 
     // draw status
@@ -511,7 +548,7 @@ function gameLoop(time) {
     lastTime = time;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawGrid();
+    // drawGrid();
     spawnMonster(time);
     moveMonsters(deltaTime);
     drawMonsters();
@@ -520,6 +557,7 @@ function gameLoop(time) {
     drawShots();
     monsterInGoal();
     drawStatus();
+    drawStartFog();
     // drawDirections();
 
     requestAnimationFrame(gameLoop);
