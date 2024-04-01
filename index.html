@@ -38,7 +38,7 @@ const monsterPath = {
     end: [{gridX: gridSizeX-1, gridY: Math.floor(gridSizeY/2)}],
 };
 fogSize = 4;
-let spawnInterval = 2000;
+let spawnInterval = 3000;
 let lastSpawn = -spawnInterval;
 let lifes = 10;
 let monsterKilled = 0;
@@ -149,7 +149,7 @@ class SlowTower extends BaseTower {
         super(x, y);
         this.cost = 20;
         this.range = 4;
-        this.fireRate = 5;
+        this.fireRate = 10;
         this.fireDuration = 0.1;
         this.damage = 1;
         this.maxMonsters = 1;
@@ -178,7 +178,7 @@ class BaseMonster {
 class L1Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .1;  // tiles per second
+        this.speed = 1.5;  // tiles per second
         this.maxHealth = 100;
         this.health = 100;
         this.reward = 2;
@@ -190,7 +190,7 @@ class L1Monster extends BaseMonster {
 class L2Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .3;
+        this.speed = 3;
         this.maxHealth = 50;
         this.health = 50;
         this.reward = 3;
@@ -202,7 +202,7 @@ class L2Monster extends BaseMonster {
 class L3Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .07;
+        this.speed = 1;
         this.maxHealth = 400;
         this.health = 400;
         this.reward = 6;
@@ -214,7 +214,7 @@ class L3Monster extends BaseMonster {
 class L4Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = .1;
+        this.speed = 1.5;
         this.maxHealth = 400;
         this.health = 400;
         this.reward = 10;
@@ -226,7 +226,7 @@ class L4Monster extends BaseMonster {
 class BossMonster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
-        this.speed = 0.05;
+        this.speed = 0.5;
         this.maxHealth = 1000;
         this.health = 1000;
         this.reward = 50;
@@ -458,7 +458,7 @@ function moveMonsters(time, deltaTime) {
         const {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
         const {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
         const destDist = Math.hypot(destX - monster.x, destY - monster.y);
-        let speed = monster.speed;
+        let speed = monster.speed * gridPixelSize / 1000;
         monster.slows = monster.slows.filter(slow => {
             if (slow.time + slow.duration * 1000 > time) {
                 speed *= (1-slow.slow);
@@ -507,7 +507,7 @@ function updateMonsters(time) {
         if (tower.lastShot + 1000 / tower.fireRate < time) {
             tower.lastShot = time;
             // update monsters
-            const monstersInRange = monsters.filter(monster => Math.hypot(tower.x - monster.x, tower.y - monster.y) < tower.range);
+            const monstersInRange = monsters.filter(monster => Math.hypot(tower.x - monster.x, tower.y - monster.y) < tower.range * gridPixelSize);
             monstersInRange.sort((a, b) => Math.hypot(tower.x - a.x, tower.y - a.y) - Math.hypot(tower.x - b.x, tower.y - b.y));
             tower.currentMonsters = monstersInRange.slice(0, tower.maxMonsters);
             // fire shots
