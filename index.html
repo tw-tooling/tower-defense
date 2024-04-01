@@ -62,7 +62,7 @@ function grid2pixel(gridX, gridY) {
     };
 }
 
-class Tower {
+class BaseTower {
     constructor(x, y) {
         const {gridX, gridY} = pixel2grid(x, y);
         this.gridX = gridX;
@@ -75,7 +75,7 @@ class Tower {
     }
 }
 
-class BaseTower extends Tower {
+class SimpleTower extends BaseTower {
     constructor(x, y) {
         super(x, y);
         this.cost = 10;
@@ -88,7 +88,7 @@ class BaseTower extends Tower {
     }
 }
 
-class MultiTower extends Tower {
+class MultiTower extends BaseTower {
     constructor(x, y) {
         super(x, y);
         this.cost = 20;
@@ -102,7 +102,28 @@ class MultiTower extends Tower {
 }
 
 
-const availableTowers = [BaseTower, MultiTower];
+const availableTowers = [SimpleTower, MultiTower];
+
+
+
+class BaseMonster {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+class MonsterL1 extends BaseMonster {
+    constructor(x, y) {
+        super(x, y);
+        this.speed = .1 + Math.random() * .1;
+        this.maxHealth = 100;
+        this.health = 100;
+        this.reward = 2;
+        this.image = new Image();
+        this.image.src = 'tiles/monster_L1.png';
+    }
+}
 
 
 class PathMatrix {
@@ -226,14 +247,8 @@ function drawTowers() {
 // Function to spawn monsters
 function spawnMonster(time) {
     if (time - lastSpawn > spawnInterval) {
-        monsters.push({
-            x: monsterPath.start.x,
-            y: monsterPath.start.y,
-            speed: .1 + Math.random() * .1,
-            maxHealth: 100,
-            health: 100,
-            reward: 2,
-        });
+        const monster = new MonsterL1(monsterPath.start.x, monsterPath.start.y);
+        monsters.push(monster);
         lastSpawn = time;
     }
 }
@@ -243,9 +258,18 @@ function drawMonsters() {
     monsters.forEach(monster => {
         ctx.beginPath();
         const h = monster.health / monster.maxHealth;
-        ctx.fillStyle = `rgb(${(1-h)*200}, ${(1-h)*200}, ${(1-h)*200})`;
-        ctx.arc(monster.x, monster.y, 8, 0, 2 * Math.PI);
-        ctx.fill();
+        // ctx.fillStyle = `rgb(${(1-h)*200}, ${(1-h)*200}, ${(1-h)*200})`;
+        // ctx.arc(monster.x, monster.y, 8, 0, 2 * Math.PI);
+        // ctx.fill();
+        
+        // monster image
+        ctx.drawImage(monster.image, monster.x-20, monster.y-20, 40, 40);
+
+        // health bar
+        ctx.fillStyle = "red";
+        ctx.fillRect(monster.x-10, monster.y-15, 20, 5);
+        ctx.fillStyle = "green";
+        ctx.fillRect(monster.x-10, monster.y-15, 20 * h, 5);
     });
 }
 
