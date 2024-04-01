@@ -24,9 +24,20 @@ const ctx = canvas.getContext("2d");
 const towers = [];
 const monsters = [];
 let lastTime = 0;
+const gridSizeX = 40;
+const gridSizeY = 24;
+const gridStartPixelX = 0;
+const gridStartPixelY = 150;
+const gridEndPixelX = ctx.canvas.width;
+const gridEndPixelY = ctx.canvas.height;
+const gridPixelSizeX = (gridEndPixelX - gridStartPixelX) / gridSizeX;
+const gridPixelSizeY = (gridEndPixelY - gridStartPixelY) / gridSizeY;
 
 // Game parameters
-const monsterPath = [{x: 0, y: 300}, {x: 800, y: 300}];
+const monsterPath = {
+    start: {x: gridStartPixelX, y: gridStartPixelY},
+    end: {x: gridEndPixelX, y: gridEndPixelY}
+};
 let spawnInterval = 1000;
 let lastSpawn = -spawnInterval;
 let lifes = 10;
@@ -34,10 +45,31 @@ let monsterKilled = 0;
 let money = 100;
 let currentSlectedTower = 0;
 
+
+// convert pixel to grid cell
+function pixel2grid(x, y) {
+    return {
+        gridX: Math.floor((x - gridStartPixelX) / (gridEndPixelX - gridStartPixelX) * gridSizeX),
+        gridY: Math.floor((y - gridStartPixelY) / (gridEndPixelY - gridStartPixelY) * gridSizeY),
+    };
+}
+
+// get upper left corner of grid cell
+function grid2pixel(gridX, gridY) {
+    return {
+        x: gridX * (gridEndPixelX - gridStartPixelX) / gridSizeX + gridStartPixelX,
+        y: gridY * (gridEndPixelY - gridStartPixelY) / gridSizeY + gridStartPixelY,
+    };
+}
+
 class Tower {
     constructor(x, y) {
-        this.x = x;
-        this.y = y;
+        const {gridX, gridY} = pixel2grid(x, y);
+        this.gridX = gridX;
+        this.gridY = gridY;
+        const {x: x_, y: y_} = grid2pixel(gridX, gridY);
+        this.x = x_ + gridPixelSizeX / 2;
+        this.y = y_ + gridPixelSizeY / 2;
         this.lastShot = 0;
         this.currentEnemies = [];
     }
@@ -73,36 +105,121 @@ class MultiTower extends Tower {
 const availableTowers = [BaseTower, MultiTower];
 
 
+class PathMatrix {
+    constructor(gridSizeX, gridSizeY, startX, startY, endX, endY) {
+        this.gridSizeX = gridSizeX;
+        this.gridSizeY = gridSizeY;
+        this.startX = startX;
+        this.startY = startY;
+        this.endX = endX;
+        this.endY = endY;
+        this.matrix = new Array(gridSizeX * gridSizeY * 2).fill(NaN);
+    }
+
+    set(x, y, nextX, nextY) {
+        this.matrix[(x + y * this.gridSizeX) * 2 + 0] = nextX;
+        this.matrix[(x + y * this.gridSizeX) * 2 + 1] = nextY;
+    }
+
+    get(x, y) {
+        return {
+            x: this.matrix[(x + y * this.gridSizeX) * 2 + 0],
+            y: this.matrix[(x + y * this.gridSizeX) * 2 + 1],
+        };
+    }
+
+    updatePaths() {
+        // clear matrix
+        this.matrix.fill(NaN);
+        this.set(this.endX, this.endY, this.endX+1, this.endY+1);
+
+        // put towers on grid
+        towers.forEach(tower => {
+            const {gridX, gridY} = tower;
+            this.set(gridX, gridY, -1, -1);
+        });
+
+        // update path matrix
+        const queue = [{x: this.endX, y: this.endY, dist: 0}];
+        while (queue.length > 0) {
+            const {x, y, dist} = queue.shift();
+            for (let i = x-1; i <= x+1; i++) {
+                for (let j = y-1; j <= y+1; j++) {
+                    const newdist = dist + Math.hypot(i - x, j - y);
+                    // self
+                    if (i === x && j === y) {
+                        continue;
+                    }
+                    // out of bounds
+                    if (i < 0 || i >= this.gridSizeX || j < 0 || j >= this.gridSizeY) {
+                        continue;
+                    }
+                    // tower or already visited
+                    if (!isNaN(this.get(i, j).x)) {
+                        continue;
+                    }
+                    
+
+                    // insert into queue
+                    let inserted = false;
+                    for (let k = 0; k < queue.length; k++) {
+                        if (queue[k].dist > newdist) {
+                            queue.splice(k, 0, {x: i, y: j, dist: newdist});
+                            inserted = true;
+                            break;
+                        }
+                    }
+                    if (!inserted) {
+                        queue.push({x: i, y: j, dist: newdist});
+                    }
+
+                    // update path matrix
+                    this.set(i, j, x, y);
+                }
+            }
+        }
+
+    }
+}
+
+const matrix = new PathMatrix(gridSizeX, gridSizeY, 0, 0, gridSizeX-1, gridSizeY-1);
+matrix.updatePaths();
+
 
 // Function to place a tower
 function placeTower(x, y) {
-    if (money < 10) {
-        return;
-    }
-    if (towers.some(tower => Math.hypot(tower.x - x, tower.y - y) < 30)) {
-        return;
-    }
-    console.log("Placing tower", availableTowers[currentSlectedTower])
     tower = new availableTowers[currentSlectedTower](x, y);
+    if (money < tower.cost) return;
+    if (towers.some(t => t.x === tower.x && t.y === tower.y)) return;
     money -= tower.cost;
     towers.push(tower);
+    matrix.updatePaths();
 }
+
+function drawGrid() {
+    ctx.strokeStyle = `rgba(0, 0, 0, 0.1)`;
+    for (let i = 0; i <= gridSizeX; i++) {
+        const {x, y} = grid2pixel(i, 0);
+        ctx.beginPath();
+        ctx.moveTo(x, gridStartPixelY);
+        ctx.lineTo(x, gridEndPixelY);
+        ctx.stroke();
+    }
+    for (let i = 0; i <= gridSizeY; i++) {
+        const {x, y} = grid2pixel(0, i);
+        ctx.beginPath();
+        ctx.moveTo(gridStartPixelX, y);
+        ctx.lineTo(gridEndPixelX, y);
+        ctx.stroke();
+    }
+}
+
 
 // Function to draw towers
 function drawTowers() {
     towers.forEach(tower => {
         ctx.fillStyle = tower.color;
-        ctx.fillRect(tower.x - 10, tower.y - 10, 20, 20);
-        // lines to close towers
-        // towers.forEach(otherTower => {
-        //     if (Math.hypot(tower.x - otherTower.x, tower.y - otherTower.y) < 80) {
-        //         ctx.strokeStyle = "blue";
-        //         ctx.beginPath();
-        //         ctx.moveTo(tower.x, tower.y);
-        //         ctx.lineTo(otherTower.x, otherTower.y);
-        //         ctx.stroke();
-        //     }
-        // });
+        ctx.fillRect(tower.x - gridPixelSizeX/2, tower.y - gridPixelSizeY/2, gridPixelSizeX, gridPixelSizeY);
     });
 }
 
@@ -110,8 +227,8 @@ function drawTowers() {
 function spawnMonster(time) {
     if (time - lastSpawn > spawnInterval) {
         monsters.push({
-            x: monsterPath[0].x,
-            y: monsterPath[0].y,
+            x: monsterPath.start.x,
+            y: monsterPath.start.y,
             speed: .1 + Math.random() * .1,
             maxHealth: 100,
             health: 100,
@@ -135,7 +252,13 @@ function drawMonsters() {
 // Function to move monsters
 function moveMonsters(deltaTime) {
     monsters.forEach(monster => {
-        monster.x += monster.speed * deltaTime;
+        const {gridX, gridY} = pixel2grid(monster.x, monster.y);
+        const {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
+        const {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
+        const destDist = Math.hypot(destX - monster.x, destY - monster.y);
+        monster.x += monster.speed * deltaTime * (destX - monster.x) / destDist;
+        monster.y += monster.speed * deltaTime * (destY - monster.y) / destDist;
+        // TODO: this might fail if speed or deltaTime is too high
     });
 }
 
@@ -182,12 +305,33 @@ function updateEnemies(time) {
 
 function monsterInGoal() {
     monsters.forEach(monster => {
-        if (monster.x > monsterPath[1].x) {
+        if (monster.x > monsterPath.end.x && monster.y > monsterPath.end.y) {
             monsters.splice(monsters.indexOf(monster), 1);
             lifes--;
         }
     });
 }
+
+
+// draw directions where monsters go for debugging
+function drawDirections() {
+    for (let i = 0; i < gridSizeX; i++) {
+        for (let j = 0; j < gridSizeY; j++) {
+            const {x, y} = grid2pixel(i, j);
+            const {x: nextX, y: nextY} = matrix.get(i, j);
+            if (!isNaN(nextX) && nextX >= 0) {
+                ctx.strokeStyle = "red";
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                const {x: nextX_, y: nextY_} = grid2pixel(nextX, nextY);
+                ctx.lineTo((nextX_+x)/2, (nextY_+y)/2);
+                ctx.stroke();
+            }
+        }
+    }
+
+}
+
 
 function drawStatus() {
 
@@ -222,6 +366,7 @@ function gameLoop(time) {
     lastTime = time;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGrid();
     spawnMonster(time);
     moveMonsters(deltaTime);
     drawMonsters();
@@ -230,6 +375,7 @@ function gameLoop(time) {
     drawShots();
     monsterInGoal();
     drawStatus();
+    // drawDirections();
 
     requestAnimationFrame(gameLoop);
 }
