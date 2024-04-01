@@ -536,8 +536,8 @@ function updateMonsters(time) {
                     monsters.splice(monsters.indexOf(monster), 1);
                     money += monster.reward;
                     monsterKilled++;
-                    spawnInterval *= 0.999;
-                    healthMultiplier += 0.01;
+                    spawnInterval *= 0.997;
+                    healthMultiplier += 0.05;
                 // add slow
                 } else if (tower.slow) {
                     monster.slows.push({slow: tower.slow, duration: tower.slowDuration, time: time});
