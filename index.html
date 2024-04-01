@@ -75,6 +75,19 @@ class BaseTower {
     }
 }
 
+class NoTower extends BaseTower {
+    constructor(x, y) {
+        super(x, y);
+        this.cost = 0;
+        this.range = 0;
+        this.fireRate = 0;
+        this.fireDuration = 0;
+        this.damage = 0;
+        this.maxEnemies = 0;
+        this.color = "black";
+    }
+}
+
 class SimpleTower extends BaseTower {
     constructor(x, y) {
         super(x, y);
@@ -102,7 +115,7 @@ class MultiTower extends BaseTower {
 }
 
 
-const availableTowers = [SimpleTower, MultiTower];
+const availableTowers = [NoTower, SimpleTower, MultiTower];
 
 
 
@@ -163,25 +176,16 @@ class PathMatrix {
         // update path matrix
         const queue = [{x: this.endX, y: this.endY, dist: 0}];
         while (queue.length > 0) {
-            const {x, y, dist} = queue.shift();
-            for (let i = x-1; i <= x+1; i++) {
-                for (let j = y-1; j <= y+1; j++) {
-                    const newdist = dist + Math.hypot(i - x, j - y);
-                    // self
-                    if (i === x && j === y) {
-                        continue;
-                    }
-                    // out of bounds
-                    if (i < 0 || i >= this.gridSizeX || j < 0 || j >= this.gridSizeY) {
-                        continue;
-                    }
-                    // tower or already visited
-                    if (!isNaN(this.get(i, j).x)) {
-                        continue;
-                    }
-                    
 
+            // get next cell
+            const {x, y, dist} = queue.shift();
+
+            // helper function
+            const insertIfValid = (i, j) => {
+                const valid = i >= 0 && i < this.gridSizeX && j >= 0 && j < this.gridSizeY && isNaN(this.get(i, j).x);
+                if (valid) {
                     // insert into queue
+                    const newdist = dist + Math.hypot(i - x, j - y);
                     let inserted = false;
                     for (let k = 0; k < queue.length; k++) {
                         if (queue[k].dist > newdist) {
@@ -197,7 +201,26 @@ class PathMatrix {
                     // update path matrix
                     this.set(i, j, x, y);
                 }
-            }
+                return valid;
+            };
+
+            // up
+            insertIfValid(x, y-1);
+            // down
+            insertIfValid(x, y+1);
+            // left
+            insertIfValid(x-1, y);
+            // right
+            insertIfValid(x+1, y);
+
+            // left up
+            if (this.get(x-1, y).x !== -1 && this.get(x, y-1).x !== -1) insertIfValid(x-1, y-1);
+            // right up
+            if (this.get(x+1, y).x !== -1 && this.get(x, y-1).x !== -1) insertIfValid(x+1, y-1);
+            // left down
+            if (this.get(x-1, y).x !== -1 && this.get(x, y+1).x !== -1) insertIfValid(x-1, y+1);
+            // right down
+            if (this.get(x+1, y).x !== -1 && this.get(x, y+1).x !== -1) insertIfValid(x+1, y+1);
         }
 
     }
@@ -267,9 +290,9 @@ function drawMonsters() {
 
         // health bar
         ctx.fillStyle = "red";
-        ctx.fillRect(monster.x-10, monster.y-15, 20, 5);
+        ctx.fillRect(monster.x-10, monster.y-17, 20, 5);
         ctx.fillStyle = "green";
-        ctx.fillRect(monster.x-10, monster.y-15, 20 * h, 5);
+        ctx.fillRect(monster.x-10, monster.y-17, 20 * h, 5);
     });
 }
 
@@ -278,11 +301,21 @@ function moveMonsters(deltaTime) {
     monsters.forEach(monster => {
         const {gridX, gridY} = pixel2grid(monster.x, monster.y);
         const {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
-        const {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
+        let {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
+        destX += gridPixelSizeX / 2;
+        destY += gridPixelSizeY / 2;
         const destDist = Math.hypot(destX - monster.x, destY - monster.y);
         monster.x += monster.speed * deltaTime * (destX - monster.x) / destDist;
         monster.y += monster.speed * deltaTime * (destY - monster.y) / destDist;
         // TODO: this might fail if speed or deltaTime is too high
+
+        // draw path for debugging
+        // ctx.strokeStyle = "red";
+        // ctx.beginPath();
+        // ctx.moveTo(monster.x, monster.y);
+        // ctx.lineTo(destX, destY);
+        // ctx.stroke();
+
     });
 }
 
@@ -341,13 +374,17 @@ function monsterInGoal() {
 function drawDirections() {
     for (let i = 0; i < gridSizeX; i++) {
         for (let j = 0; j < gridSizeY; j++) {
-            const {x, y} = grid2pixel(i, j);
+            let {x, y} = grid2pixel(i, j);
+            x += gridPixelSizeX / 2;
+            y += gridPixelSizeY / 2;
             const {x: nextX, y: nextY} = matrix.get(i, j);
             if (!isNaN(nextX) && nextX >= 0) {
+                let {x: nextX_, y: nextY_} = grid2pixel(nextX, nextY);
+                nextX_ += gridPixelSizeX / 2;
+                nextY_ += gridPixelSizeY / 2;
                 ctx.strokeStyle = "red";
                 ctx.beginPath();
                 ctx.moveTo(x, y);
-                const {x: nextX_, y: nextY_} = grid2pixel(nextX, nextY);
                 ctx.lineTo((nextX_+x)/2, (nextY_+y)/2);
                 ctx.stroke();
             }
