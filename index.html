@@ -16,7 +16,7 @@
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <canvas id="gameCanvas" width="1200" height="900"></canvas>
     <script>
 // Initialization
 const canvas = document.getElementById("gameCanvas");
@@ -35,8 +35,8 @@ const gridPixelSizeY = (gridEndPixelY - gridStartPixelY) / gridSizeY;
 
 // Game parameters
 const monsterPath = {
-    start: {x: gridStartPixelX, y: gridStartPixelY},
-    end: {x: gridEndPixelX, y: gridEndPixelY}
+    start: new Array(gridSizeY).fill(0).map((_, i) => ({gridX: 0, gridY: i})),
+    end: [{gridX: gridSizeX-1, gridY: Math.floor(gridSizeY/2)}],
 };
 let spawnInterval = 1000;
 let lastSpawn = -spawnInterval;
@@ -71,7 +71,7 @@ class BaseTower {
         this.x = x_;
         this.y = y_;
         this.lastShot = 0;
-        this.currentEnemies = [];
+        this.currentMonsters = [];
     }
 }
 
@@ -84,7 +84,10 @@ class NoTower extends BaseTower {
         this.fireDuration = 0;
         this.damage = 0;
         this.maxMonsters = 0;
-        this.color = "black";
+        this.color = "black";  // TODO: remove
+        this.shotColor = "black";  // TODO: remove
+        this.image = new Image();
+        this.image.src = 'tiles/tower.png';
     }
 }
 
@@ -98,6 +101,9 @@ class SimpleTower extends BaseTower {
         this.damage = 10;
         this.maxMonsters = 1;
         this.color = "blue";
+        this.shotColor = "red";
+        this.image = new Image();
+        this.image.src = 'tiles/tower.png';
     }
 }
 
@@ -111,6 +117,9 @@ class MultiTower extends BaseTower {
         this.damage = 8;
         this.maxMonsters = 5;
         this.color = "green";
+        this.shotColor = "orange";
+        this.image = new Image();
+        this.image.src = 'tiles/tower.png';
     }
 }
 
@@ -126,7 +135,7 @@ class BaseMonster {
     }
 }
 
-class MonsterL1 extends BaseMonster {
+class L1Monster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
         this.speed = .1 + Math.random() * .1;
@@ -138,34 +147,80 @@ class MonsterL1 extends BaseMonster {
     }
 }
 
+class L2Monster extends BaseMonster {
+    constructor(x, y) {
+        super(x, y);
+        this.speed = .1 + Math.random() * .1;
+        this.maxHealth = 200;
+        this.health = 200;
+        this.reward = 5;
+        this.image = new Image();
+        this.image.src = 'tiles/monster_L2.png';
+    }
+}
+
+class L3Monster extends BaseMonster {
+    constructor(x, y) {
+        super(x, y);
+        this.speed = .1 + Math.random() * .1;
+        this.maxHealth = 300;
+        this.health = 300;
+        this.reward = 10;
+        this.image = new Image();
+        this.image.src = 'tiles/monster_L3.png';
+    }
+}
+
+class L4Monster extends BaseMonster {
+    constructor(x, y) {
+        super(x, y);
+        this.speed = .1 + Math.random() * .1;
+        this.maxHealth = 400;
+        this.health = 400;
+        this.reward = 20;
+        this.image = new Image();
+        this.image.src = 'tiles/monster_L4.png';
+    }
+}
+
+class BossMonster extends BaseMonster {
+    constructor(x, y) {
+        super(x, y);
+        this.speed = .1 + Math.random() * .1;
+        this.maxHealth = 1000;
+        this.health = 1000;
+        this.reward = 50;
+        this.image = new Image();
+        this.image.src = 'tiles/monster_boss.png';
+    }
+}
+
 
 class PathMatrix {
-    constructor(gridSizeX, gridSizeY, startX, startY, endX, endY) {
-        this.gridSizeX = gridSizeX;
-        this.gridSizeY = gridSizeY;
-        this.startX = startX;
-        this.startY = startY;
-        this.endX = endX;
-        this.endY = endY;
+    constructor() {
         this.matrix = new Array(gridSizeX * gridSizeY * 2).fill(NaN);
     }
 
     set(x, y, nextX, nextY) {
-        this.matrix[(x + y * this.gridSizeX) * 2 + 0] = nextX;
-        this.matrix[(x + y * this.gridSizeX) * 2 + 1] = nextY;
+        this.matrix[(x + y * gridSizeX) * 2 + 0] = nextX;
+        this.matrix[(x + y * gridSizeX) * 2 + 1] = nextY;
     }
 
     get(x, y) {
         return {
-            x: this.matrix[(x + y * this.gridSizeX) * 2 + 0],
-            y: this.matrix[(x + y * this.gridSizeX) * 2 + 1],
+            x: this.matrix[(x + y * gridSizeX) * 2 + 0],
+            y: this.matrix[(x + y * gridSizeX) * 2 + 1],
         };
     }
 
     updatePaths() {
         // clear matrix
         this.matrix.fill(NaN);
-        this.set(this.endX, this.endY, this.endX+1, this.endY+1);
+
+        // set end points
+        monsterPath.end.forEach(end => {
+            this.set(end.gridX, end.gridY, end.gridX, end.gridY);
+        });
 
         // put towers on grid
         towers.forEach(tower => {
@@ -173,8 +228,10 @@ class PathMatrix {
             this.set(gridX, gridY, -1, -1);
         });
 
+        // initialize queue with end points
+        const queue = monsterPath.end.map(end => ({x: end.gridX, y: end.gridY, dist: 0}));
+
         // update path matrix
-        const queue = [{x: this.endX, y: this.endY, dist: 0}];
         while (queue.length > 0) {
 
             // get next cell
@@ -182,7 +239,7 @@ class PathMatrix {
 
             // helper function
             const insertIfValid = (i, j) => {
-                const valid = i >= 0 && i < this.gridSizeX && j >= 0 && j < this.gridSizeY && isNaN(this.get(i, j).x);
+                const valid = i >= 0 && i < gridSizeX && j >= 0 && j < gridSizeY && isNaN(this.get(i, j).x);
                 if (valid) {
                     // insert into queue
                     const newdist = dist + Math.hypot(i - x, j - y);
@@ -268,13 +325,27 @@ function drawTowers() {
     towers.forEach(tower => {
         ctx.fillStyle = tower.color;
         ctx.fillRect(tower.x - gridPixelSizeX/2, tower.y - gridPixelSizeY/2, gridPixelSizeX, gridPixelSizeY);
+        const s = 1.5 * gridPixelSizeX;
+        ctx.drawImage(tower.image, tower.x-s/2, tower.y-s/2, s, s);
     });
 }
 
 // Function to spawn monsters
 function spawnMonster(time) {
     if (time - lastSpawn > spawnInterval) {
-        const monster = new MonsterL1(monsterPath.start.x, monsterPath.start.y);
+        const monsterToSpawn = Math.random();
+        const spawnPoint = monsterPath.start[Math.floor(Math.random() * monsterPath.start.length)];
+        const {x, y} = grid2pixel(spawnPoint.gridX, spawnPoint.gridY);
+        if (monsterToSpawn < 0.5) {
+            monster = new L1Monster(x, y);
+        } else if (monsterToSpawn < 0.7) {
+            monster = new L2Monster(x, y);
+        } else if (monsterToSpawn < 0.9) {
+            monster = new L3Monster(x, y);
+        } else {
+            monster = new L4Monster(x, y);
+        }
+        // TODO: other monsters
         monsters.push(monster);
         lastSpawn = time;
     }
@@ -290,13 +361,14 @@ function drawMonsters() {
         // ctx.fill();
         
         // monster image
-        ctx.drawImage(monster.image, monster.x-20, monster.y-20, 40, 40);
+        const s = 1.5 * gridPixelSizeX;
+        ctx.drawImage(monster.image, monster.x-s/2, monster.y-s/2, s, s);
 
         // health bar
         ctx.fillStyle = "red";
-        ctx.fillRect(monster.x-10, monster.y-17, 20, 5);
+        ctx.fillRect(monster.x-s/4, monster.y-s/2, s/2, s/8);
         ctx.fillStyle = "green";
-        ctx.fillRect(monster.x-10, monster.y-17, 20 * h, 5);
+        ctx.fillRect(monster.x-s/4, monster.y-s/2, s/2 * h, s/8);
     });
 }
 
@@ -305,9 +377,7 @@ function moveMonsters(deltaTime) {
     monsters.forEach(monster => {
         const {gridX, gridY} = pixel2grid(monster.x, monster.y);
         const {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
-        let {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
-        destX += gridPixelSizeX / 2;
-        destY += gridPixelSizeY / 2;
+        const {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
         const destDist = Math.hypot(destX - monster.x, destY - monster.y);
         monster.x += monster.speed * deltaTime * (destX - monster.x) / destDist;
         monster.y += monster.speed * deltaTime * (destY - monster.y) / destDist;
@@ -326,8 +396,9 @@ function moveMonsters(deltaTime) {
 
 function drawShots() {
     towers.forEach(tower => {
-        tower.currentEnemies.forEach(monster => {
-            ctx.strokeStyle = "red";
+        tower.currentMonsters.forEach(monster => {
+            ctx.strokeStyle = tower.shotColor;
+            ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(tower.x, tower.y);
             ctx.lineTo(monster.x, monster.y);
@@ -365,13 +436,25 @@ function updateMonsters(time) {
 }
 
 
+// remove monsters in goal
 function monsterInGoal() {
+    new_monsters = [];
     monsters.forEach(monster => {
-        if (monster.x > monsterPath.end.x && monster.y > monsterPath.end.y) {
-            monsters.splice(monsters.indexOf(monster), 1);
+        const {gridX, gridY} = pixel2grid(monster.x, monster.y);
+        let inGoal = false;
+        monsterPath.end.forEach(end => {
+            if (gridX === end.gridX && gridY === end.gridY) {
+                inGoal = true;
+            }
+        });
+        if (inGoal) {
             lifes--;
+        } else {
+            new_monsters.push(monster);
         }
     });
+    monsters.length = 0;
+    monsters.push(...new_monsters);
 }
 
 
@@ -419,7 +502,7 @@ function drawStatus() {
     }
     // draw status outline
     ctx.strokeStyle = "black";
-    ctx.strokeRect(0, 0, 800, 150);
+    ctx.strokeRect(0, 0, gridEndPixelX, gridStartPixelY);
 }
 
 // Game loop
