@@ -18,6 +18,19 @@
 <body>
     <canvas id="gameCanvas" width="1200" height="900"></canvas>
     <script>
+
+// TODO:
+// * pause button and autopause when tab is not active
+// * waves
+// * multiplayer
+// * tower skins
+// * monster goal skin
+// * game over screen
+// * merge towers (2x2, 3x3, ...)
+
+
+
+
 // Initialization
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -40,6 +53,7 @@ const monsterPath = {
 fogSize = 4;
 let spawnInterval = 3000;
 let lastSpawn = -spawnInterval;
+let healthMultiplier = 1;
 let lifes = 10;
 let monsterKilled = 0;
 let money = 100;
@@ -227,8 +241,8 @@ class BossMonster extends BaseMonster {
     constructor(x, y) {
         super(x, y);
         this.speed = 0.5;
-        this.maxHealth = 1000;
-        this.health = 1000;
+        this.maxHealth = 2000;
+        this.health = 2000;
         this.reward = 50;
         this.image.src = 'tiles/monster_boss.png';
         this.image_scale = 3;
@@ -424,7 +438,11 @@ function spawnMonster(time) {
         } else if (monsterToSpawn < 1) {
             monster = new BossMonster(x, y);
         }
-        // TODO: other monsters
+        // increase health
+        monster.maxHealth *= healthMultiplier;
+        monster.health = monster.maxHealth;
+
+        // add monster to list
         monsters.push(monster);
         lastSpawn = time;
     }
@@ -444,9 +462,9 @@ function drawMonsters() {
         ctx.drawImage(monster.image, monster.x-s/2, monster.y-s/2, s, s);
 
         // health bar
-        ctx.fillStyle = "red";
+        ctx.fillStyle = 'rgba(196, 0, 0, 0.6)'
         ctx.fillRect(monster.x-s/4, monster.y-s/2, s/2, s/8);
-        ctx.fillStyle = "green";
+        ctx.fillStyle = 'rgba(0, 196, 0, 0.6)'
         ctx.fillRect(monster.x-s/4, monster.y-s/2, s/2 * h, s/8);
     });
 }
@@ -518,7 +536,8 @@ function updateMonsters(time) {
                     monsters.splice(monsters.indexOf(monster), 1);
                     money += monster.reward;
                     monsterKilled++;
-                    spawnInterval *= 0.99;
+                    spawnInterval *= 0.999;
+                    healthMultiplier += 0.01;
                 // add slow
                 } else if (tower.slow) {
                     monster.slows.push({slow: tower.slow, duration: tower.slowDuration, time: time});
