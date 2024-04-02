@@ -614,16 +614,44 @@ function drawDirections() {
 }
 
 
-// fog near the start. Grey gradient
-function drawStartFog() {
+const fogTiles = [];
+
+// fog near the start
+function drawStartFog(deltaTime) {
+    // basic fog
     const gradient = ctx.createLinearGradient(gridStartPixelX, 0, gridStartPixelX + fogSize*gridPixelSize, 0);
     gradient.addColorStop(0.00, "rgba(100, 100, 100, 1.00)");
-    gradient.addColorStop(0.25, "rgba(100, 100, 100, 0.85)");
-    gradient.addColorStop(0.50, "rgba(100, 100, 100, 0.65)");
-    gradient.addColorStop(0.75, "rgba(100, 100, 100, 0.40)");
     gradient.addColorStop(1.00, "rgba(100, 100, 100, 0.00)");
     ctx.fillStyle = gradient;
     ctx.fillRect(gridStartPixelX, gridStartPixelY, fogSize*gridPixelSize, gridEndPixelY);
+
+    // dynamic moving fog
+    while (fogTiles.length < 20) {
+        const speed = fogSize * gridPixelSize * Math.random() * 0.3;
+        const opacity = 1;
+        const radius = 100 + Math.random() * 50;
+        const radiusChange = 20 * Math.random();
+        const x = -radius;
+        const y = gridStartPixelY + Math.random() * gridSizeY * gridPixelSize;
+        fogTiles.push({x, y, speed, opacity, radius, radiusChange});
+    }
+    fogTiles.forEach((tile, i) => {
+        tile.x += tile.speed * deltaTime / 1000;
+        tile.opacity -= deltaTime / 1000 * Math.random() * 0.3;
+        if (tile.x > gridStartPixelX + fogSize/2 * gridPixelSize) {
+            tile.opacity -= deltaTime / 1000 * 0.2;
+        }
+        tile.radius += tile.radiusChange * deltaTime / 1000;
+        if (tile.opacity <= 0 || tile.radius <= 0) {
+            fogTiles.splice(i, 1);
+        } else {
+            const gradient = ctx.createRadialGradient(tile.x, tile.y, 0, tile.x, tile.y, tile.radius);
+            gradient.addColorStop(0, `rgba(100, 100, 100, ${tile.opacity*0.7})`);
+            gradient.addColorStop(1, "rgba(100,100,100,0)");
+            ctx.fillStyle = gradient;
+            ctx.fillRect(tile.x-tile.radius, Math.max(tile.y-tile.radius, gridStartPixelY), tile.radius*2, tile.radius*2);
+        }
+    });
 }
 
 
@@ -680,9 +708,10 @@ function gameLoop(time) {
     const deltaTime = time - lastTime;
     lastTime = time;
 
+    // TODO: does pausing clear monser statuses? If yes fix it.
     if (!gamePaused) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // drawGrid();
+        ctx.clearRect(0, gridStartPixelY, canvas.width, canvas.height);
+        // drawGrid();  // debug
         spawnMonster(time);
         moveMonsters(time, deltaTime);
         drawTowers();
@@ -690,13 +719,10 @@ function gameLoop(time) {
         updateMonsters(time);
         drawShots();
         monsterInGoal();
-        drawStartFog();
-        // drawDirections();
-    } else {
-        // only clear status area
-        ctx.clearRect(0, 0, canvas.width, gridStartPixelY);
-        // TODO: does pausing clear monser statusses? If yes fix it.
+        drawStartFog(deltaTime);
+        // drawDirections();  // debug
     }
+    ctx.clearRect(0, 0, canvas.width, gridStartPixelY);
     drawStatus();
 
     requestAnimationFrame(gameLoop);
