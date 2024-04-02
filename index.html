@@ -34,8 +34,6 @@
 // * sound effects
 // * different projectiles (e.g. rockets, grenades, lasers goind through multiple monsters, ...)
 // * move tower tool
-// * delete tower animation
-// * grid and tower range visualization when placing towers
 // * maybe slowly moving map (to the right, i.e. fog grows), starting after a few minutes, newly available land might contain mountains, swamps, ...
 // * undo button
 
@@ -47,6 +45,7 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const towers = [];
 const monsters = [];
+const mousePos = {x: 0, y: 0};
 let lastTime = 0;
 const gridSizeX = 20;
 const gridSizeY = 12;
@@ -102,11 +101,14 @@ class BaseTower {
     }
 }
 
+// remove tower tool, not a real tower
+// animation is handled in Hammer class
 class RemoveTower {
     constructor() {
         this.color = "white";
         this.image = new Image();
         this.image.src = 'tiles/hammer.png';
+        this.image_scale = 1;
     }
 }
 
@@ -267,6 +269,49 @@ class BossMonster extends BaseMonster {
 }
 
 
+class Hammer {
+    constructor() {
+        const files = [
+            'tiles/hammer.png',
+            'tiles/hammer_r30.png',
+            'tiles/hammer_r60.png',
+        ]
+        this.images = files.map(file => {
+            const image = new Image();
+            image.src = file;
+            return image;
+        });
+        this.image = this.images[2];
+        this.animation_step = 0;
+        this.animation_sequence = [2, 1, 0, 1];
+        this.animation_time_per_img = 50;
+        this.animation_time_start = 0;
+        this.animating = false;
+    }
+
+    hammer() {
+        this.animating = true;
+        this.animation_time_start = performance.now();
+        this.animation_step = 1;
+    }
+
+    animate(time) {
+        if (!this.animating) return;
+        if (time - this.animation_time_start > this.animation_time_per_img) {
+            this.animation_time_start = time;
+            this.animation_step++;
+            if (this.animation_step >= this.animation_sequence.length) {
+                this.animating = false;
+                this.animation_step = 0;
+            }
+            this.image = this.images[this.animation_sequence[this.animation_step]];
+        }
+    }
+}
+
+const hammer = new Hammer();
+
+
 class PathMatrix {
     constructor() {
         this.matrix = new Array(gridSizeX * gridSizeY * 2).fill(NaN);
@@ -360,7 +405,7 @@ const matrix = new PathMatrix(gridSizeX, gridSizeY, 0, 0, gridSizeX-1, gridSizeY
 matrix.updatePaths();
 
 
-function isThreAPath(tower) {
+function isThereAPath(tower) {
     towers.push(tower);
     // TODO: it's not really nice to have `towers` as a global variable influencing the PathMatrix.updatePaths() function
     tmp_matrix = new PathMatrix();
@@ -383,6 +428,7 @@ function placeTower(x, y) {
                 towers.splice(i, 1);
                 money += tower.cost;
                 matrix.updatePaths();
+                hammer.hammer();
                 return;
             }
         }
@@ -397,7 +443,7 @@ function placeTower(x, y) {
     if (tower.gridX < fogSize) return;  // tower too close to start
     if (monsterPath.end.some(({gridX, gridY}) => (gridX === tower.gridX && gridY === tower.gridY))) return;  // tower on end point
     if (towers.some(t => t.x === tower.x && t.y === tower.y)) return;  // tower on tower
-    if (!isThreAPath(tower)) return;  // no path for monsters left
+    if (!isThereAPath(tower)) return;  // no path for monsters left
 
     // place tower
     money -= tower.cost;
@@ -708,6 +754,44 @@ function drawStatus() {
     }
 }
 
+
+function drawMouse(time) {
+
+    // don't draw mouse for touch devices
+    if (window.matchMedia('(hover: none)').matches) return;
+
+    // don't draw if in status area
+    if (mousePos.y < gridStartPixelY) return;
+
+    // draw tower preview
+    const sampleTower = new availableTowers[currentSlectedTower](0, 0);
+    let img;
+    if (currentSlectedTower === 0) {
+        hammer.animate(time);
+        img = hammer.image;
+    } else {
+        img = sampleTower.image;
+    }
+    const {x, y} = mousePos;
+    const s = gridPixelSize * sampleTower.image_scale;
+    ctx.drawImage(img, x-s/2, y-s/2, s, s);
+
+    // draw tower range
+    if (currentSlectedTower !== 0) {
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.beginPath();
+        ctx.arc(x, y, sampleTower.range * gridPixelSize, 0, 2 * Math.PI);
+        ctx.stroke();
+    }
+
+    // draw local grid
+    const {gridX, gridY} = pixel2grid(x, y);
+    const {x: x_, y: y_} = grid2pixel(gridX, gridY);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
+    ctx.strokeRect(x_ - gridPixelSize/2, y_ - gridPixelSize/2, gridPixelSize, gridPixelSize);
+}
+
+
 // Game loop
 function gameLoop(time) {
     const deltaTime = time - lastTime;
@@ -726,6 +810,7 @@ function gameLoop(time) {
         monsterInGoal();
         drawStartFog(deltaTime);
         // drawDirections();  // debug
+        drawMouse(time);
     }
     ctx.clearRect(0, 0, canvas.width, gridStartPixelY);
     drawStatus();
@@ -775,6 +860,14 @@ document.addEventListener('keydown', function(event) {
 addEventListener('blur', function() {
     gamePaused = true;
 });
+
+
+addEventListener('mousemove', function(event) {
+    const rect = canvas.getBoundingClientRect();
+    mousePos.x = event.clientX - rect.left;
+    mousePos.y = event.clientY - rect.top;
+});
+
 
 requestAnimationFrame(gameLoop);
 
