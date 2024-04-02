@@ -31,6 +31,7 @@
 // * progression, e.g. get new towers after killing bosses
 // * events that alter the game, e.g. asteroid impacts, vulcanos, super monsters, new spawn points
 // * fix bug of teleporting monsters (when game laggs or runs in background)
+// * fancy dynamic fog animation
 
 
 
@@ -431,7 +432,7 @@ function drawTowers() {
         // for walls: draw connections to nearby walls
         if (tower instanceof NoTower) {
             towers.forEach(other => {
-                if (Math.max(Math.abs(tower.gridX - other.gridX), Math.abs(tower.gridY - other.gridY)) === 1) {
+                if (other instanceof NoTower && Math.max(Math.abs(tower.gridX - other.gridX), Math.abs(tower.gridY - other.gridY)) === 1) {
                     const s = tower.image_scale / 2 * gridPixelSize;
                     const diffX = other.gridX - tower.gridX;
                     const diffY = other.gridY - tower.gridY;
@@ -637,16 +638,17 @@ function drawStatus() {
     ctx.fillText("Available towers: ", 10, 90);
     for (let i = 0; i < availableTowers.length; i++) {
         const sampleTower = new availableTowers[i](0, 0);
-        ctx.fillStyle = sampleTower.color;
-        ctx.fillRect(10 + i * 60, 100, 20, 20);
-        ctx.drawImage(sampleTower.image, 10 + i * 60, 100, 20, 20);
+        // ctx.fillStyle = sampleTower.color;
+        // ctx.fillRect(10 + i * 60, 100, 20, 20);
+        const s = sampleTower.image_scale;
+        ctx.drawImage(sampleTower.image, 10 + i * 80, 100, 40, 40);
         if (sampleTower.cost) {
             ctx.fillStyle = "black";
-            ctx.fillText(sampleTower.cost, 35 + i * 60, 117);
+            ctx.fillText(sampleTower.cost, 55 + i * 80, 117);
         }
         if (currentSlectedTower === i) {
             ctx.strokeStyle = "black";
-            ctx.strokeRect(9 + i * 60, 99, 23, 23);
+            ctx.strokeRect(9 + i * 80, 99, 43, 43);
         }
     }
     // draw status outline
@@ -681,7 +683,7 @@ canvas.addEventListener('click', function(event) {
     const y = event.clientY - rect.top;
     if (x < 800 && y < 150) {
         availableTowers.forEach((tower, index) => {
-            if (x > 10 + index * 60 && x < 30 + index * 60 && y > 100 && y < 120) {
+            if (x > 10 + index * 80 && x < 50 + index * 80 && y > 100 && y < 140) {
                 currentSlectedTower = index;
             }
         });
