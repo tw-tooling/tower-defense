@@ -30,7 +30,6 @@
 // * progression, e.g. get new towers after killing bosses
 // * events that alter the game, e.g. asteroid impacts, vulcanos, super monsters, new spawn points
 // * fix bug of teleporting monsters (when game laggs or runs in background)
-// * fancy dynamic fog animation
 // * nice background tiles
 // * sound effects
 
@@ -57,7 +56,7 @@ const monsterPath = {
     start: new Array(gridSizeY).fill(0).map((_, i) => ({gridX: 0, gridY: i})),
     end: [{gridX: gridSizeX-1, gridY: Math.floor(gridSizeY/2)}],
 };
-fogSize = 4;
+const fogSize = 4;
 let spawnInterval = 3000;
 let lastSpawn = -spawnInterval;
 let healthMultiplier = 1;
