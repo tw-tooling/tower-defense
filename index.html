@@ -36,6 +36,7 @@
 // * move tower tool
 // * maybe slowly moving map (to the right, i.e. fog grows), starting after a few minutes, newly available land might contain mountains, swamps, ...
 // * undo button
+// * make mouse cursor and tower placement visible during pause (i.e. deltaTime=0, but draw everything)
 
 
 
@@ -777,16 +778,16 @@ function drawMouse(time) {
     ctx.drawImage(img, x-s/2, y-s/2, s, s);
 
     // draw tower range
+    const {gridX, gridY} = pixel2grid(x, y);
+    const {x: x_, y: y_} = grid2pixel(gridX, gridY);
     if (currentSlectedTower !== 0) {
         ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
         ctx.beginPath();
-        ctx.arc(x, y, sampleTower.range * gridPixelSize, 0, 2 * Math.PI);
+        ctx.arc(x_, y_, sampleTower.range * gridPixelSize, 0, 2 * Math.PI);
         ctx.stroke();
     }
 
     // draw local grid
-    const {gridX, gridY} = pixel2grid(x, y);
-    const {x: x_, y: y_} = grid2pixel(gridX, gridY);
     ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
     ctx.strokeRect(x_ - gridPixelSize/2, y_ - gridPixelSize/2, gridPixelSize, gridPixelSize);
 }
