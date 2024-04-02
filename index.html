@@ -20,18 +20,19 @@
     <script>
 
 // TODO:
-// * pause button and autopause when tab is not active
 // * waves
 // * maybe levels
 // * multiplayer
-// * tower skins
 // * monster goal skin
 // * game over screen
 // * merge towers (2x2, ...)
+// * maybe tower upgrades
 // * progression, e.g. get new towers after killing bosses
 // * events that alter the game, e.g. asteroid impacts, vulcanos, super monsters, new spawn points
 // * fix bug of teleporting monsters (when game laggs or runs in background)
 // * fancy dynamic fog animation
+// * nice background tiles
+// * sound effects
 
 
 
@@ -49,6 +50,7 @@ const gridStartPixelX = 0;
 const gridStartPixelY = 180;
 const gridEndPixelX = ctx.canvas.width;
 const gridEndPixelY = gridStartPixelY + gridPixelSize * gridSizeY;
+let gamePaused = false;
 
 // Game parameters
 const monsterPath = {
@@ -654,6 +656,23 @@ function drawStatus() {
     // draw status outline
     ctx.strokeStyle = "black";
     ctx.strokeRect(0, 0, gridEndPixelX, gridStartPixelY);
+
+    // draw pause button
+    ctx.fillStyle = "black";
+    const pauseBtnStartX = gridEndPixelX - 80;
+    const pauseBtnStartY = 20;
+    if (gamePaused) {
+        // draw play button
+        ctx.beginPath();
+        ctx.moveTo(pauseBtnStartX, pauseBtnStartY);
+        ctx.lineTo(pauseBtnStartX + 30, pauseBtnStartY + 20);
+        ctx.lineTo(pauseBtnStartX, pauseBtnStartY + 40);
+        ctx.fill();
+    } else {
+        // draw pause button
+        ctx.fillRect(pauseBtnStartX, pauseBtnStartY, 10, 40);
+        ctx.fillRect(pauseBtnStartX + 20, pauseBtnStartY, 10, 40);
+    }
 }
 
 // Game loop
@@ -661,18 +680,24 @@ function gameLoop(time) {
     const deltaTime = time - lastTime;
     lastTime = time;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // drawGrid();
-    spawnMonster(time);
-    moveMonsters(time, deltaTime);
-    drawTowers();
-    drawMonsters();
-    updateMonsters(time);
-    drawShots();
-    monsterInGoal();
+    if (!gamePaused) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // drawGrid();
+        spawnMonster(time);
+        moveMonsters(time, deltaTime);
+        drawTowers();
+        drawMonsters();
+        updateMonsters(time);
+        drawShots();
+        monsterInGoal();
+        drawStartFog();
+        // drawDirections();
+    } else {
+        // only clear status area
+        ctx.clearRect(0, 0, canvas.width, gridStartPixelY);
+        // TODO: does pausing clear monser statusses? If yes fix it.
+    }
     drawStatus();
-    drawStartFog();
-    // drawDirections();
 
     requestAnimationFrame(gameLoop);
 }
@@ -681,23 +706,43 @@ canvas.addEventListener('click', function(event) {
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    if (x < 800 && y < 150) {
+
+    // in status area
+    if (y < gridStartPixelY) {
+        // select towers
         availableTowers.forEach((tower, index) => {
             if (x > 10 + index * 80 && x < 50 + index * 80 && y > 100 && y < 140) {
                 currentSlectedTower = index;
             }
         });
+
+        // pause button
+        if (x > gridEndPixelX - 80 && x < gridEndPixelX - 40 && y > 20 && y < 60) {
+            gamePaused = !gamePaused;
+        }
+
+    // in game area
     } else {
         placeTower(x, y);
     }
 });
 
 document.addEventListener('keydown', function(event) {
+    // select towers
     new Array(availableTowers.length).fill(0).forEach((_, index) => {
         if (event.key === index.toString()) {
             currentSlectedTower = index;
         }
     });
+    // pause
+    if (event.key === " ") {
+        gamePaused = !gamePaused;
+    }
+});
+
+
+addEventListener('blur', function() {
+    gamePaused = true;
 });
 
 requestAnimationFrame(gameLoop);
