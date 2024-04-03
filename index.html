@@ -35,7 +35,6 @@
 // * different projectiles (e.g. rockets, grenades, lasers goind through multiple monsters, ...)
 // * move tower tool
 // * maybe slowly moving map (to the right, i.e. fog grows), starting after a few minutes, newly available land might contain mountains, swamps, ...
-// * undo button
 // * make mouse cursor and tower placement visible during pause (i.e. deltaTime=0, but draw everything)
 
 
@@ -46,6 +45,7 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const towers = [];
 const monsters = [];
+const undoList = [];
 const mousePos = {x: 0, y: 0};
 let lastTime = 0;
 const gridSizeX = 20;
@@ -417,19 +417,21 @@ function isThereAPath(tower) {
 }
 
 // Function to place a tower
-function placeTower(x, y) {
+function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     const {gridX, gridY} = pixel2grid(x, y);
     if (gridX < 0 || gridX >= gridSizeX || gridY < 0 || gridY >= gridSizeY) return;
 
     // remove tower tool
-    if (currentSlectedTower === 0) {
+    if (selected === 0) {
         for (let i = 0; i < towers.length; i++) {
             const tower = towers[i];
             if (tower.gridX === gridX && tower.gridY === gridY) {
-                towers.splice(i, 1);
+                const [removedTowert] = towers.splice(i, 1);
                 money += tower.cost;
                 matrix.updatePaths();
                 hammer.hammer();
+                if (!undo)
+                    undoList.push(() => placeTower(x, y, availableTowers.indexOf(removedTowert.constructor), true));
                 return;
             }
         }
@@ -437,7 +439,7 @@ function placeTower(x, y) {
     }
 
     // init tower
-    tower = new availableTowers[currentSlectedTower](x, y);
+    tower = new availableTowers[selected](x, y);
 
     // check if tower can be placed
     if (money < tower.cost) return;  // not enough money
@@ -450,6 +452,8 @@ function placeTower(x, y) {
     money -= tower.cost;
     towers.push(tower);
     matrix.updatePaths();
+    if (!undo)
+        undoList.push(() => placeTower(x, y, 0, true));
 }
 
 function drawGrid() {
@@ -733,13 +737,10 @@ function drawStatus() {
             ctx.strokeRect(9 + i * 80, 99, 43, 43);
         }
     }
-    // draw status outline
-    ctx.strokeStyle = "black";
-    ctx.strokeRect(0, 0, gridEndPixelX, gridStartPixelY);
 
     // draw pause button
     ctx.fillStyle = "black";
-    const pauseBtnStartX = gridEndPixelX - 80;
+    const pauseBtnStartX = gridEndPixelX - 80 + 5;
     const pauseBtnStartY = 20;
     if (gamePaused) {
         // draw play button
@@ -753,6 +754,15 @@ function drawStatus() {
         ctx.fillRect(pauseBtnStartX, pauseBtnStartY, 10, 40);
         ctx.fillRect(pauseBtnStartX + 20, pauseBtnStartY, 10, 40);
     }
+
+    // draw undo button
+    undoImg = new Image();
+    undoImg.src = 'tiles/undo.svg'
+    ctx.drawImage(undoImg, gridEndPixelX - 80, 100, 40, 40);
+
+    // draw status outline
+    ctx.strokeStyle = "black";
+    ctx.strokeRect(0, 0, gridEndPixelX, gridStartPixelY);
 }
 
 
@@ -851,9 +861,16 @@ document.addEventListener('keydown', function(event) {
             currentSlectedTower = index;
         }
     });
+
     // pause
     if (event.key === " ") {
         gamePaused = !gamePaused;
+    }
+
+    // undo
+    if (event.key === "z") {
+        const undo = undoList.pop();
+        if (undo) undo();
     }
 });
 

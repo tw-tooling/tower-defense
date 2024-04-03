@@ -1,8 +1,14 @@
-source: https://ddnet.org/skins/index.php
+# Image Licenses
 
-monster_boss.png: CC BY, mind
-monster_L1.png: CC BY, mind
-monster_L2.png: CC BY, mind
-monster_L3.png: CC BY, mind
-monster_L4.png: CC BY, mind
-tower.png: CC BY-SA, louis
+towers (source: https://ddnet.org/skins/index.php):
+* monster_boss.png: CC BY, mind
+* monster_L1.png: CC BY, mind
+* monster_L2.png: CC BY, mind
+* monster_L3.png: CC BY, mind
+* monster_L4.png: CC BY, mind
+* tower.png: CC BY-SA, louis
+
+Icons
+* undo.svg: CC0, source: https://www.svgrepo.com/svg/5017/undo-arrow
+* redo.svg: CC0, source: https://www.svgrepo.com/svg/110727/redo-arrow-symbol
+
