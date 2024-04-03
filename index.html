@@ -35,7 +35,6 @@
 // * different projectiles (e.g. rockets, grenades, lasers goind through multiple monsters, ...)
 // * move tower tool
 // * maybe slowly moving map (to the right, i.e. fog grows), starting after a few minutes, newly available land might contain mountains, swamps, ...
-// * make mouse cursor and tower placement visible during pause (i.e. deltaTime=0, but draw everything)
 
 
 
@@ -47,6 +46,7 @@ const towers = [];
 const monsters = [];
 const undoList = [];
 const mousePos = {x: 0, y: 0};
+let gameTime = 0;
 let lastTime = 0;
 const gridSizeX = 20;
 const gridSizeY = 12;
@@ -96,7 +96,7 @@ class BaseTower {
         const {x: x_, y: y_} = grid2pixel(gridX, gridY);
         this.x = x_;
         this.y = y_;
-        this.lastShot = 0;
+        this.lastShot = gameTime;
         this.currentMonsters = [];
         this.image = new Image();
     }
@@ -805,25 +805,23 @@ function drawMouse(time) {
 
 // Game loop
 function gameLoop(time) {
-    const deltaTime = time - lastTime;
+    const deltaTime = gamePaused ? 0 : time - lastTime;
+    gameTime += deltaTime;
     lastTime = time;
 
     // TODO: does pausing clear monser statuses? If yes fix it.
-    if (!gamePaused) {
-        ctx.clearRect(0, gridStartPixelY, canvas.width, canvas.height);
-        // drawGrid();  // debug
-        spawnMonster(time);
-        moveMonsters(time, deltaTime);
-        drawTowers();
-        drawMonsters();
-        updateMonsters(time);
-        drawShots();
-        monsterInGoal();
-        drawStartFog(deltaTime);
-        // drawDirections();  // debug
-        drawMouse(time);
-    }
-    ctx.clearRect(0, 0, canvas.width, gridStartPixelY);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // drawGrid();  // debug
+    spawnMonster(gameTime);
+    moveMonsters(gameTime, deltaTime);
+    drawTowers();
+    drawMonsters();
+    updateMonsters(gameTime);
+    drawShots();
+    monsterInGoal();
+    drawStartFog(deltaTime);
+    // drawDirections();  // debug
+    drawMouse(gameTime);
     drawStatus();
 
     requestAnimationFrame(gameLoop);
