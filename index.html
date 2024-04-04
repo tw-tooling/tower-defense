@@ -418,6 +418,7 @@ function isThereAPath(tower) {
 
 // Function to place a tower
 function placeTower(x, y, selected = currentSlectedTower, undo=false) {
+    if (gamePaused) return;
     const {gridX, gridY} = pixel2grid(x, y);
     if (gridX < 0 || gridX >= gridSizeX || gridY < 0 || gridY >= gridSizeY) return;
 
