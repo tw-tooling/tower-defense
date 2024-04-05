@@ -847,6 +847,12 @@ canvas.addEventListener('click', function(event) {
             gamePaused = !gamePaused;
         }
 
+        // undo button
+        if (x > gridEndPixelX - 80 && x < gridEndPixelX - 40 && y > 100 && y < 140) {
+            const undo = undoList.pop();
+            if (undo) undo();
+        }
+
     // in game area
     } else {
         placeTower(x, y);
