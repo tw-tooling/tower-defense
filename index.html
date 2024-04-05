@@ -772,8 +772,8 @@ function drawMouse(time) {
     // don't draw mouse for touch devices
     if (window.matchMedia('(hover: none)').matches) return;
 
-    // don't draw if in status area
-    if (mousePos.y < gridStartPixelY) return;
+    // don't draw if outside of grid
+    if (mousePos.x < gridStartPixelX || mousePos.x > gridEndPixelX || mousePos.y < gridStartPixelY || mousePos.y > gridEndPixelY) return;
 
     // draw tower preview
     const sampleTower = new availableTowers[currentSlectedTower](0, 0);
