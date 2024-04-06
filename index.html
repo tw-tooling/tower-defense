@@ -35,6 +35,7 @@
 // * different projectiles (e.g. rockets, grenades, lasers goind through multiple monsters, ...)
 // * move tower tool
 // * maybe slowly moving map (to the right, i.e. fog grows), starting after a few minutes, newly available land might contain mountains, swamps, ...
+// * fix monsters disappearing when enclosed by walls (location gets NaN)
 
 
 
@@ -454,7 +455,11 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     if (monsterPath.end.some(({gridX, gridY}) => (gridX === tower.gridX && gridY === tower.gridY))) return;  // tower on end point
     if (block){
         removeTower(gridX, gridY, undo);
-        if (block.constructor.name === tower.constructor.name) return;
+        if (block.constructor.name === tower.constructor.name) {
+            // just remove tower if same type
+            matrix.updatePaths();
+            return;
+        }
     }
     if (!isThereAPath(tower)) return;  // no path for monsters left
 
