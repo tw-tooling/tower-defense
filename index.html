@@ -416,6 +416,19 @@ function isThereAPath(tower) {
     return result;
 }
 
+function removeTower(x, y, undo = false){
+    for (let i = 0; i < towers.length; i++) {
+        const tower = towers[i];
+        if (tower.gridX === x && tower.gridY === y) {
+            const [removedTower] = towers.splice(i, 1);
+            money += tower.cost;
+            if (!undo) undoList.push(() => placeTower(x, y, 0, true));
+            return true;
+        }
+    }
+    return false;
+}
+
 // Function to place a tower
 function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     if (gamePaused) return;
@@ -424,17 +437,9 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
 
     // remove tower tool
     if (selected === 0) {
-        for (let i = 0; i < towers.length; i++) {
-            const tower = towers[i];
-            if (tower.gridX === gridX && tower.gridY === gridY) {
-                const [removedTowert] = towers.splice(i, 1);
-                money += tower.cost;
-                matrix.updatePaths();
-                hammer.hammer();
-                if (!undo)
-                    undoList.push(() => placeTower(x, y, availableTowers.indexOf(removedTowert.constructor), true));
-                return;
-            }
+        if (removeTower(gridX, gridY, undo)) {
+            matrix.updatePaths();
+            hammer.hammer();
         }
         return;
     }
@@ -443,10 +448,14 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     tower = new availableTowers[selected](x, y);
 
     // check if tower can be placed
-    if (money < tower.cost) return;  // not enough money
+    block = towers.find(t => t.gridX === tower.gridX && t.gridY === tower.gridY);
+    if (money < tower.cost - (block? block.cost : 0)) return;  // not enough money
     if (tower.gridX < fogSize) return;  // tower too close to start
     if (monsterPath.end.some(({gridX, gridY}) => (gridX === tower.gridX && gridY === tower.gridY))) return;  // tower on end point
-    if (towers.some(t => t.x === tower.x && t.y === tower.y)) return;  // tower on tower
+    if (block){
+        removeTower(gridX, gridY, undo);
+        if (block.constructor.name === tower.constructor.name) return;
+    }
     if (!isThereAPath(tower)) return;  // no path for monsters left
 
     // place tower
