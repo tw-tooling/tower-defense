@@ -423,8 +423,10 @@ function removeTower(x, y, undo = false){
             const [removedTower] = towers.splice(i, 1);
             money += tower.cost;
             if (!undo) undoList.push(() => placeTower(x, y, 0, true));
+            return true;
         }
     }
+    return false;
 }
 
 // Function to place a tower
@@ -435,9 +437,10 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
 
     // remove tower tool
     if (selected === 0) {
-        removeTower(gridX, gridY, undo);
-        matrix.updatePaths();
-        hammer.hammer();
+        if (removeTower(gridX, gridY, undo)) {
+            matrix.updatePaths();
+            hammer.hammer();
+        }
         return;
     }
 
@@ -451,7 +454,7 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     if (monsterPath.end.some(({gridX, gridY}) => (gridX === tower.gridX && gridY === tower.gridY))) return;  // tower on end point
     if (block){
         removeTower(gridX, gridY, undo);
-        if (block.constructor.name === tower.constructor.name) return
+        if (block.constructor.name === tower.constructor.name) return;
     }
     if (!isThereAPath(tower)) return;  // no path for monsters left
 
