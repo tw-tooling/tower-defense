@@ -821,8 +821,11 @@ function drawMouse(time) {
         ctx.stroke();
     }
 
+    // set color depending on if tower can be placed
+    const valid = isThereAPath(new availableTowers[currentSlectedTower](x, y)) && x > gridStartPixelX + fogSize * gridPixelSize;  // TODO: this might be slow
+    ctx.strokeStyle = valid ? "rgba(0, 0, 0, 0.3)" : "rgba(255, 0, 0, 0.3)";
+
     // draw local grid
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
     ctx.strokeRect(x_ - gridPixelSize/2, y_ - gridPixelSize/2, gridPixelSize, gridPixelSize);
 }
 
