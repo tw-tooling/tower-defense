@@ -731,7 +731,7 @@ function drawStartFog(deltaTime) {
 function drawBackground() {
     backgroundImg = new Image();
     backgroundImg.src = 'tiles/background.png'
-    ctx.drawImage(backgroundImg, 0, 0, canvas.width*2, canvas.height*2, 0, gridStartPixelY, canvas.width, canvas.height);
+    ctx.drawImage(backgroundImg, 0, 0, canvas.width*1.5, canvas.height*1.5, 0, gridStartPixelY, canvas.width, canvas.height);
 }
 
 
@@ -832,21 +832,34 @@ function drawMouse(time) {
 
 // Game loop
 function gameLoop(time) {
-    const deltaTime = gamePaused ? 0 : time - lastTime;
-    gameTime += deltaTime;
+    const gameLoopStartTime = performance.now();
+    const totalDeltaTime = gamePaused ? 0 : time - lastTime;
+    let deltaTimeLeft = totalDeltaTime;
     lastTime = time;
 
+    // update game
+    while (deltaTimeLeft > 0) {
+        const deltaTime = Math.min(deltaTimeLeft, 20);  // limit deltaTime to 20ms
+        deltaTimeLeft -= deltaTime;
+        gameTime += deltaTime;
+        spawnMonster(gameTime);
+        moveMonsters(gameTime, deltaTime);
+        updateMonsters(gameTime);
+        monsterInGoal();
+        if (performance.now() - gameLoopStartTime > 1000 / 30) {
+            console.log(`Game loop took too long, game is slowed down (skipped ${~~deltaTimeLeft}ms)`);
+            break;
+        }
+    }
+
+    // draw stuff
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBackground();
     // drawGrid();  // debug
-    spawnMonster(gameTime);
-    moveMonsters(gameTime, deltaTime);
     drawTowers();
     drawMonsters();
-    updateMonsters(gameTime);
     drawShots();
-    monsterInGoal();
-    drawStartFog(deltaTime);
+    drawStartFog(totalDeltaTime);
     // drawDirections();  // debug
     drawMouse(gameTime);
     drawStatus();
