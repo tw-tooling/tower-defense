@@ -685,14 +685,16 @@ function drawDirections() {
 }
 
 
-const fogTiles = [];
+const fogTiles = [
+    ...Array(10).fill(0).map((_, i) => ({x: 100., y: i * 1337. % (gridEndPixelY-gridStartPixelY), speed: 20, opacity: .5, radius: 200, radiusChange: 0})),
+];
 
 // fog near the start
 function drawStartFog(deltaTime) {
     // basic fog
     const gradient = ctx.createLinearGradient(gridStartPixelX, 0, gridStartPixelX + fogSize*gridPixelSize, 0);
-    gradient.addColorStop(0.00, "rgba(100, 100, 100, 1.00)");
-    gradient.addColorStop(1.00, "rgba(100, 100, 100, 0.00)");
+    gradient.addColorStop(0.00, "rgba(200, 200, 200, 0.50)");
+    gradient.addColorStop(1.00, "rgba(200, 200, 200, 0.00)");
     ctx.fillStyle = gradient;
     ctx.fillRect(gridStartPixelX, gridStartPixelY, fogSize*gridPixelSize, gridEndPixelY);
 
@@ -717,12 +719,19 @@ function drawStartFog(deltaTime) {
             fogTiles.splice(i, 1);
         } else {
             const gradient = ctx.createRadialGradient(tile.x, tile.y, 0, tile.x, tile.y, tile.radius);
-            gradient.addColorStop(0, `rgba(100, 100, 100, ${tile.opacity*0.7})`);
-            gradient.addColorStop(1, "rgba(100,100,100,0)");
+            gradient.addColorStop(0, `rgba(200, 200, 200, ${tile.opacity*0.7})`);
+            gradient.addColorStop(1, "rgba(200, 200, 200,0)");
             ctx.fillStyle = gradient;
             ctx.fillRect(tile.x-tile.radius, Math.max(tile.y-tile.radius, gridStartPixelY), tile.radius*2, tile.radius*2);
         }
     });
+}
+
+
+function drawBackground() {
+    backgroundImg = new Image();
+    backgroundImg.src = 'tiles/background.png'
+    ctx.drawImage(backgroundImg, 0, 0, canvas.width*2, canvas.height*2, 0, gridStartPixelY, canvas.width, canvas.height);
 }
 
 
@@ -824,8 +833,8 @@ function gameLoop(time) {
     gameTime += deltaTime;
     lastTime = time;
 
-    // TODO: does pausing clear monser statuses? If yes fix it.
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBackground();
     // drawGrid();  // debug
     spawnMonster(gameTime);
     moveMonsters(gameTime, deltaTime);
