@@ -64,7 +64,7 @@ let gamePaused = false;
 // Game parameters
 const monsterPath = {
     start: new Array(gridSizeY).fill(0).map((_, i) => ({gridX: 0, gridY: i})),
-    end: [{gridX: gridSizeX-1, gridY: Math.floor(gridSizeY/2)}],
+    end: new Array(gridSizeY).fill(0).map((_, i) => ({gridX: gridSizeX-1, gridY: i})),
 };
 const fogSize = 4;
 let spawnInterval = 3000;
@@ -340,48 +340,45 @@ class PathMatrix {
         // clear matrix
         this.matrix.fill(NaN);
 
-        // set end points
-        monsterPath.end.forEach(end => {
-            this.set(end.gridX, end.gridY, end.gridX, end.gridY);
-        });
-
         // put towers on grid
         towers.forEach(tower => {
             const {gridX, gridY} = tower;
-            this.set(gridX, gridY, -1, -1);
+            this.set(gridX, gridY, 0, gridY);
         });
 
         // initialize queue with end points
-        const queue = monsterPath.end.map(end => ({x: end.gridX, y: end.gridY, dist: 0}));
+        const queue = monsterPath.end.map(end => ({x: end.gridX, y: end.gridY, nextX: end.gridX, nextY: end.gridY, dist: 0}));
 
         // update path matrix
         while (queue.length > 0) {
 
             // get next cell
-            const {x, y, dist} = queue.shift();
+            const {x, y, nextX, nextY, dist} = queue.shift();
+
+            // skip if already visited
+            if (!isNaN(this.get(x, y).x)) continue;
+
+            // update path matrix
+            this.set(x, y, nextX, nextY);
 
             // helper function
             const insertIfValid = (i, j) => {
-                const valid = i >= 0 && i < gridSizeX && j >= 0 && j < gridSizeY && isNaN(this.get(i, j).x);
-                if (valid) {
+                if (i >= 0 && i < gridSizeX && j >= 0 && j < gridSizeY) {
                     // insert into queue
                     const newdist = dist + Math.hypot(i - x, j - y);
+                    const newElement = {x: i, y: j, nextX: x, nextY: y, dist: newdist};
                     let inserted = false;
                     for (let k = 0; k < queue.length; k++) {
                         if (queue[k].dist > newdist) {
-                            queue.splice(k, 0, {x: i, y: j, dist: newdist});
+                            queue.splice(k, 0, newElement);
                             inserted = true;
                             break;
                         }
                     }
                     if (!inserted) {
-                        queue.push({x: i, y: j, dist: newdist});
+                        queue.push(newElement);
                     }
-
-                    // update path matrix
-                    this.set(i, j, x, y);
                 }
-                return valid;
             };
 
             // up
@@ -394,13 +391,13 @@ class PathMatrix {
             insertIfValid(x+1, y);
 
             // left up
-            if (this.get(x-1, y).x !== -1 && this.get(x, y-1).x !== -1) insertIfValid(x-1, y-1);
+            if (this.get(x-1, y).x !== 0 && this.get(x, y-1).x !== 0) insertIfValid(x-1, y-1);
             // right up
-            if (this.get(x+1, y).x !== -1 && this.get(x, y-1).x !== -1) insertIfValid(x+1, y-1);
+            if (this.get(x+1, y).x !== 0 && this.get(x, y-1).x !== 0) insertIfValid(x+1, y-1);
             // left down
-            if (this.get(x-1, y).x !== -1 && this.get(x, y+1).x !== -1) insertIfValid(x-1, y+1);
+            if (this.get(x-1, y).x !== 0 && this.get(x, y+1).x !== 0) insertIfValid(x-1, y+1);
             // right down
-            if (this.get(x+1, y).x !== -1 && this.get(x, y+1).x !== -1) insertIfValid(x+1, y+1);
+            if (this.get(x+1, y).x !== 0 && this.get(x, y+1).x !== 0) insertIfValid(x+1, y+1);
         }
 
     }
@@ -825,7 +822,7 @@ function drawMouse(time) {
     }
 
     // set color depending on if tower can be placed
-    const valid = isThereAPath(new availableTowers[currentSlectedTower](x, y)) && x > gridStartPixelX + fogSize * gridPixelSize;  // TODO: this might be slow
+    const valid = isThereAPath(new availableTowers[currentSlectedTower](x, y)) && x > gridStartPixelX + fogSize * gridPixelSize && !monsterPath.end.some(({gridX:a, gridY:b}) => (a === gridX && b === gridY));  // TODO: this might be slow
     ctx.strokeStyle = valid ? "rgba(0, 0, 0, 0.3)" : "rgba(255, 0, 0, 0.3)";
 
     // draw local grid
@@ -863,7 +860,7 @@ function gameLoop(time) {
     drawMonsters();
     drawShots();
     drawStartFog(totalDeltaTime);
-    // drawDirections();  // debug
+    drawDirections();  // debug
     drawMouse(gameTime);
     drawStatus();
 
