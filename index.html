@@ -67,7 +67,7 @@ const monsterPath = {
     end: new Array(gridSizeY).fill(0).map((_, i) => ({gridX: gridSizeX-1, gridY: i})),
 };
 const fogSize = 4;
-let spawnInterval = 3000;
+let spawnInterval = 2000;
 let lastSpawn = -spawnInterval;
 let healthMultiplier = 1;
 let lifes = 10;
@@ -520,7 +520,7 @@ function drawTowers() {
 let lastWaveTime = 0; // Track the last time a wave started or a break began
 let isInWave = false; // Flag to track if we are currently in a wave
 let waveDuration = 20000 + Math.random() * 20000; // 20-40 seconds for each wave
-let breakDuration = 10000 + Math.random() * 20000; // 10-30 seconds for breaks between waves
+let breakDuration = 10000 + Math.random() * 20000; // 10-20 seconds for breaks between waves
 
 // Adjusted Function to spawn monsters based on waves
 function spawnMonster(time) {
@@ -657,7 +657,10 @@ function updateMonsters(time) {
                     monsters.splice(monsters.indexOf(monster), 1);
                     money += monster.reward;
                     monsterKilled++;
-                    spawnInterval *= 0.997;
+                    //  limiting the spawn interval to 1 second
+                    if (spawnInterval > 1000) {
+                        spawnInterval *= 0.997;
+                    } 
                     healthMultiplier += 0.05;
                 // add slow
                 } else if (tower.slow) {
