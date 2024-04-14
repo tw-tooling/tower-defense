@@ -517,37 +517,6 @@ function drawTowers() {
 }
 
 
-
-
-
-// // Function to spawn monsters
-// function spawnMonster(time) {
-//     if (time - lastSpawn > spawnInterval) {
-//         const monsterToSpawn = Math.random();
-//         const spawnPoint = monsterPath.start[Math.floor(Math.random() * monsterPath.start.length)];
-//         const {x, y} = grid2pixel(spawnPoint.gridX, spawnPoint.gridY);
-//         if (monsterToSpawn < 0.5) {
-//             monster = new L1Monster(x, y);
-//         } else if (monsterToSpawn < 0.7) {
-//             monster = new L2Monster(x, y);
-//         } else if (monsterToSpawn < 0.9) {
-//             monster = new L3Monster(x, y);
-//         } else if (monsterToSpawn < 0.98){
-//             monster = new L4Monster(x, y);
-//         } else if (monsterToSpawn < 1) {
-//             monster = new BossMonster(x, y);
-//         }
-//         // increase health
-//         monster.maxHealth *= healthMultiplier;
-//         monster.health = monster.maxHealth;
-
-//         // add monster to list
-//         monsters.push(monster);
-//         lastSpawn = time;
-//     }
-// }
-
-
 let lastWaveTime = 0; // Track the last time a wave started or a break began
 let isInWave = false; // Flag to track if we are currently in a wave
 let waveDuration = 20000 + Math.random() * 20000; // 20-40 seconds for each wave
