@@ -516,32 +516,89 @@ function drawTowers() {
     });
 }
 
-// Function to spawn monsters
-function spawnMonster(time) {
-    if (time - lastSpawn > spawnInterval) {
-        const monsterToSpawn = Math.random();
-        const spawnPoint = monsterPath.start[Math.floor(Math.random() * monsterPath.start.length)];
-        const {x, y} = grid2pixel(spawnPoint.gridX, spawnPoint.gridY);
-        if (monsterToSpawn < 0.5) {
-            monster = new L1Monster(x, y);
-        } else if (monsterToSpawn < 0.7) {
-            monster = new L2Monster(x, y);
-        } else if (monsterToSpawn < 0.9) {
-            monster = new L3Monster(x, y);
-        } else if (monsterToSpawn < 0.98){
-            monster = new L4Monster(x, y);
-        } else if (monsterToSpawn < 1) {
-            monster = new BossMonster(x, y);
-        }
-        // increase health
-        monster.maxHealth *= healthMultiplier;
-        monster.health = monster.maxHealth;
 
-        // add monster to list
-        monsters.push(monster);
-        lastSpawn = time;
+
+
+
+// // Function to spawn monsters
+// function spawnMonster(time) {
+//     if (time - lastSpawn > spawnInterval) {
+//         const monsterToSpawn = Math.random();
+//         const spawnPoint = monsterPath.start[Math.floor(Math.random() * monsterPath.start.length)];
+//         const {x, y} = grid2pixel(spawnPoint.gridX, spawnPoint.gridY);
+//         if (monsterToSpawn < 0.5) {
+//             monster = new L1Monster(x, y);
+//         } else if (monsterToSpawn < 0.7) {
+//             monster = new L2Monster(x, y);
+//         } else if (monsterToSpawn < 0.9) {
+//             monster = new L3Monster(x, y);
+//         } else if (monsterToSpawn < 0.98){
+//             monster = new L4Monster(x, y);
+//         } else if (monsterToSpawn < 1) {
+//             monster = new BossMonster(x, y);
+//         }
+//         // increase health
+//         monster.maxHealth *= healthMultiplier;
+//         monster.health = monster.maxHealth;
+
+//         // add monster to list
+//         monsters.push(monster);
+//         lastSpawn = time;
+//     }
+// }
+
+
+let lastWaveTime = 0; // Track the last time a wave started or a break began
+let isInWave = false; // Flag to track if we are currently in a wave
+let waveDuration = 20000 + Math.random() * 20000; // 20-40 seconds for each wave
+let breakDuration = 10000 + Math.random() * 20000; // 10-30 seconds for breaks between waves
+
+// Adjusted Function to spawn monsters based on waves
+function spawnMonster(time) {
+    if (!isInWave) {
+        // If we are not in a wave, check if it's time to start a new wave
+        if (time - lastWaveTime > breakDuration) {
+            // Start a new wave
+            isInWave = true;
+            lastWaveTime = time;
+            waveDuration = 20000 + Math.random() * 20000; // Randomize for the next wave
+        }
+    } else {
+        // We are in a wave, check if the wave duration has passed
+        if (time - lastWaveTime > waveDuration) {
+            // Wave has ended, start break
+            isInWave = false;
+            lastWaveTime = time;
+            breakDuration = 10000 + Math.random() * 20000; // Randomize for the next break
+        } else if (time - lastSpawn > spawnInterval) {
+            // It's time to spawn a new monster within the wave
+            const monsterToSpawn = Math.random();
+            const spawnPoint = monsterPath.start[Math.floor(Math.random() * monsterPath.start.length)];
+            const {x, y} = grid2pixel(spawnPoint.gridX, spawnPoint.gridY);
+            let monster;
+            if (monsterToSpawn < 0.5) {
+                monster = new L1Monster(x, y);
+            } else if (monsterToSpawn < 0.7) {
+                monster = new L2Monster(x, y);
+            } else if (monsterToSpawn < 0.9) {
+                monster = new L3Monster(x, y);
+            } else if (monsterToSpawn < 0.98){
+                monster = new L4Monster(x, y);
+            } else if (monsterToSpawn < 1) {
+                monster = new BossMonster(x, y);
+            }
+            // increase health
+            monster.maxHealth *= healthMultiplier;
+            monster.health = monster.maxHealth;
+
+            // add monster to list
+            monsters.push(monster);
+            lastSpawn = time;
+        }
     }
 }
+
+
 
 // Function to draw monsters
 function drawMonsters() {
