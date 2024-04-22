@@ -35,7 +35,6 @@
 // * move tower tool
 // * maybe slowly moving map (to the right, i.e. fog grows), starting after a few minutes, newly available land might contain mountains, swamps, ...
 // * add possibility of hammering mosters
-// * fix undo
 
 
 
@@ -453,7 +452,10 @@ function removeTower(gridX, gridY, undo = false){
     if (!tower) return false;
     towers.remove(tower);
     money += tower.cost;
-    if (!undo) undoList.push(() => placeTower(gridX, gridY, availableTowers.indexOf(tower.constructor), true));
+    if (!undo) {
+        const {x, y} = grid2pixel(gridX, gridY);
+        undoList.push(() => placeTower(x, y, availableTowers.indexOf(tower.constructor), true));
+    }
     matrix.updatePaths();
     return true;
 }
