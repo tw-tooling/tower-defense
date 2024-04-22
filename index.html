@@ -30,15 +30,12 @@
 // * maybe tower upgrades
 // * progression, e.g. get new towers after killing bosses
 // * events that alter the game, e.g. asteroid impacts, vulcanos, super monsters, new spawn points
-// * fix bug of teleporting monsters (when game laggs or runs in background)
-// * nice background tiles
 // * sound effects
 // * different projectiles (e.g. rockets, grenades, lasers goind through multiple monsters, ...)
 // * move tower tool
 // * maybe slowly moving map (to the right, i.e. fog grows), starting after a few minutes, newly available land might contain mountains, swamps, ...
-// * fix monsters disappearing when enclosed by walls (location gets NaN)
 // * add possibility of hammering mosters
-// * add custom mouse cursor
+// * fix undo
 
 
 
@@ -46,7 +43,6 @@
 // Initialization
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const towers = [];
 const monsters = [];
 const undoList = [];
 const mousePos = {x: 0, y: 0};
@@ -74,6 +70,7 @@ let lifes = 10;
 let monsterKilled = 0;
 let money = 100;
 let currentSlectedTower = 2;
+let numSpawnedMonsters = 0;
 
 
 // convert pixel to grid cell
@@ -210,6 +207,7 @@ class BaseMonster {
         this.y = y;
         this.image = new Image();
         this.slows = [];
+        this.id = numSpawnedMonsters++;
     }
 }
 
@@ -317,6 +315,40 @@ class Hammer {
 const hammer = new Hammer();
 
 
+class TowerList {
+    constructor() {
+        this.towers = [];
+        this.towerMatrix = new Array(gridSizeX * gridSizeY).fill(0);
+    }
+
+    add(tower) {
+        if (this.getType(tower.gridX, tower.gridY)) return false;
+        this.towers.push(tower);
+        this.towerMatrix[tower.gridX + tower.gridY * gridSizeX] = availableTowers.indexOf(tower.constructor);
+        return true;
+    }
+
+    remove(tower) {
+        this.towers.splice(this.towers.indexOf(tower), 1);
+        this.towerMatrix[tower.gridX + tower.gridY * gridSizeX] = 0;
+    }
+
+    getType(x, y) {
+        return this.towerMatrix[x + y * gridSizeX];
+    }
+
+    getTower(x, y) {
+        return this.towers.find(tower => tower.gridX === x && tower.gridY === y);
+    }
+
+    forEach(callback) {
+        this.towers.forEach(callback);
+    }
+}
+
+const towers = new TowerList();
+
+
 class PathMatrix {
     constructor() {
         this.matrix = new Array(gridSizeX * gridSizeY * 2).fill(NaN);
@@ -340,12 +372,6 @@ class PathMatrix {
         // clear matrix
         this.matrix.fill(NaN);
 
-        // put towers on grid
-        towers.forEach(tower => {
-            const {gridX, gridY} = tower;
-            this.set(gridX, gridY, 0, gridY);
-        });
-
         // initialize queue with end points
         const queue = monsterPath.end.map(end => ({x: end.gridX, y: end.gridY, nextX: end.gridX, nextY: end.gridY, dist: 0}));
 
@@ -360,6 +386,9 @@ class PathMatrix {
 
             // update path matrix
             this.set(x, y, nextX, nextY);
+
+            // don't insert neighbors if on tower
+            if (towers.getType(x, y)) continue;
 
             // helper function
             const insertIfValid = (i, j) => {
@@ -381,6 +410,8 @@ class PathMatrix {
                 }
             };
 
+            // insert neighbors into queue
+
             // up
             insertIfValid(x, y-1);
             // down
@@ -391,15 +422,14 @@ class PathMatrix {
             insertIfValid(x+1, y);
 
             // left up
-            if (this.get(x-1, y).x !== 0 && this.get(x, y-1).x !== 0) insertIfValid(x-1, y-1);
+            if (!towers.getType(x-1, y) && !towers.getType(x, y-1)) insertIfValid(x-1, y-1);
             // right up
-            if (this.get(x+1, y).x !== 0 && this.get(x, y-1).x !== 0) insertIfValid(x+1, y-1);
+            if (!towers.getType(x+1, y) && !towers.getType(x, y-1)) insertIfValid(x+1, y-1);
             // left down
-            if (this.get(x-1, y).x !== 0 && this.get(x, y+1).x !== 0) insertIfValid(x-1, y+1);
+            if (!towers.getType(x-1, y) && !towers.getType(x, y+1)) insertIfValid(x-1, y+1);
             // right down
-            if (this.get(x+1, y).x !== 0 && this.get(x, y+1).x !== 0) insertIfValid(x+1, y+1);
+            if (!towers.getType(x+1, y) && !towers.getType(x, y+1)) insertIfValid(x+1, y+1);
         }
-
     }
 }
 
@@ -408,26 +438,24 @@ matrix.updatePaths();
 
 
 function isThereAPath(tower) {
-    towers.push(tower);
-    // TODO: it's not really nice to have `towers` as a global variable influencing the PathMatrix.updatePaths() function
-    tmp_matrix = new PathMatrix();
-    tmp_matrix.updatePaths();
-    const result = !monsterPath.start.some(({gridX, gridY}) => isNaN(tmp_matrix.get(gridX, gridY).x))
-    towers.pop();
-    return result;
+    if (towers.add(tower)) {
+        tmp_matrix = new PathMatrix();
+        tmp_matrix.updatePaths();
+        const result = !monsterPath.start.some(({gridX, gridY}) => isNaN(tmp_matrix.get(gridX, gridY).x))
+        towers.remove(tower);
+        return result;
+    }
+    return true;  // assume there is a path if tower is already there
 }
 
-function removeTower(x, y, undo = false){
-    for (let i = 0; i < towers.length; i++) {
-        const tower = towers[i];
-        if (tower.gridX === x && tower.gridY === y) {
-            const [removedTower] = towers.splice(i, 1);
-            money += tower.cost;
-            if (!undo) undoList.push(() => placeTower(x, y, 0, true));
-            return true;
-        }
-    }
-    return false;
+function removeTower(gridX, gridY, undo = false){
+    tower = towers.getTower(gridX, gridY);
+    if (!tower) return false;
+    towers.remove(tower);
+    money += tower.cost;
+    if (!undo) undoList.push(() => placeTower(gridX, gridY, availableTowers.indexOf(tower.constructor), true));
+    matrix.updatePaths();
+    return true;
 }
 
 // Function to place a tower
@@ -439,17 +467,17 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     // remove tower tool
     if (selected === 0) {
         if (removeTower(gridX, gridY, undo)) {
-            matrix.updatePaths();
             hammer.hammer();
         }
         return;
     }
 
     // init tower
-    tower = new availableTowers[selected](x, y);
+    const tower = new availableTowers[selected](x, y);
 
     // check if tower can be placed
-    block = towers.find(t => t.gridX === tower.gridX && t.gridY === tower.gridY);
+    const block = towers.getTower(gridX, gridY);
+    if (block) return;  // tower already there  // TODO: maybe remove again
     if (money < tower.cost - (block? block.cost : 0)) return;  // not enough money
     if (tower.gridX < fogSize) return;  // tower too close to start
     if (monsterPath.end.some(({gridX, gridY}) => (gridX === tower.gridX && gridY === tower.gridY))) return;  // tower on end point
@@ -465,7 +493,7 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
 
     // place tower
     money -= tower.cost;
-    towers.push(tower);
+    towers.add(tower);
     matrix.updatePaths();
     if (!undo)
         undoList.push(() => placeTower(x, y, 0, true));
@@ -594,10 +622,33 @@ function drawMonsters() {
 function moveMonsters(time, deltaTime) {
     monsters.forEach(monster => {
         const {gridX, gridY} = pixel2grid(monster.x, monster.y);
-        const {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
-        const {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
-        const destDist = Math.hypot(destX - monster.x, destY - monster.y);
+        let {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
         let speed = monster.speed * gridPixelSize / 1000;
+        // if (destGridX === -42 && destGridY === -42) {
+        //     // monster is on a tower, move to closest grid cell
+        //     [diffX, diffY] = [[1,0],[0,1],[-1,0],[0,-1]].sort(diff => {
+        //         const {x_, y_} = grid2pixel(gridX + diff[0], gridY + diff[1]);
+        //         return Math.hypot(monster.x - x_, monster.y - y_);
+        //     })[0]
+        // }
+        if (isNaN(destGridX) || isNaN(destGridY)) {
+            // monster is trapped, calculate deterministic pseudorandom tilewise movement
+            // direction is dependent of monster position, health, speed, id and game time. So it changes, if the monster gets damage or every 500ms
+            const t =  ~~(gameTime/500);
+            const dir = ~~(gridX / (t%7+1) + gridY / (t%7+1) + monster.health + t / (monster.id%8+1+monster.speed)) % 8;
+            const [tmp_x, tmp_y] = [[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]][dir];
+            var destX = monster.x + tmp_x * gridPixelSize;
+            var destY = monster.y + tmp_y * gridPixelSize;
+            if (destY < gridStartPixelY) {
+                destY = gridStartPixelY + gridPixelSize;
+            } else if (destY > gridEndPixelY) {
+                destY = gridEndPixelY - gridPixelSize;
+            }
+            // in theory, it could happen that the pseudorandom direction causes the monster to go through a diagonal wall
+        } else {
+            var {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
+        }
+        const destDist = Math.hypot(destX - monster.x, destY - monster.y);
         monster.slows = monster.slows.filter(slow => {
             if (slow.time + slow.duration * 1000 > time) {
                 speed *= (1-slow.slow);
@@ -606,8 +657,27 @@ function moveMonsters(time, deltaTime) {
             // remove outdated slows
             return false;
         });
-        monster.x += speed * deltaTime * (destX - monster.x) / destDist;
-        monster.y += speed * deltaTime * (destY - monster.y) / destDist;
+
+        // calculate new position
+        const newX = monster.x + speed * deltaTime * (destX - monster.x) / destDist;
+        const newY = monster.y + speed * deltaTime * (destY - monster.y) / destDist;
+
+        // check if new position is valid
+        const {gridX: newGridX, gridY: newGridY} = pixel2grid(newX, newY);
+        if (newGridX < 0 || newGridX >= gridSizeX || newGridY < 0 || newGridY >= gridSizeY) {
+            // monster is out of bounds, this shouldn't happend
+            console.warn("Monster out of bounds", monster, newGridX, newGridY);
+            return;
+        }
+        if (towers.getType(newGridX, newGridY) && !towers.getType(gridX, gridY)) {
+            // monster is on a tower and wasn't before
+            return;
+        }
+
+        // update position
+        monster.x = newX;
+        monster.y = newY;
+        
         // TODO: this might fail if speed or deltaTime is too high
         // TODO: when moving diagonal the monsters sometimes (shortly) end up in neighboring tiles, which alters their movement
 
@@ -889,7 +959,7 @@ function gameLoop(time) {
     drawMonsters();
     drawShots();
     drawStartFog(totalDeltaTime);
-    drawDirections();  // debug
+    // drawDirections();  // debug
     drawMouse(gameTime);
     drawStatus();
 
@@ -925,6 +995,15 @@ canvas.addEventListener('click', function(event) {
     } else {
         placeTower(x, y);
     }
+});
+
+canvas.addEventListener('contextmenu', function(event) {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const {gridX, gridY} = pixel2grid(x, y);
+    placeTower(x, y, 0);
 });
 
 document.addEventListener('keydown', function(event) {
