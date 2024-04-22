@@ -481,22 +481,13 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     if (money < tower.cost - (block? block.cost : 0)) return;  // not enough money
     if (tower.gridX < fogSize) return;  // tower too close to start
     if (monsterPath.end.some(({gridX, gridY}) => (gridX === tower.gridX && gridY === tower.gridY))) return;  // tower on end point
-    if (block){
-        removeTower(gridX, gridY, undo);
-        if (block.constructor.name === tower.constructor.name) {
-            // just remove tower if same type
-            matrix.updatePaths();
-            return;
-        }
-    }
     if (!isThereAPath(tower)) return;  // no path for monsters left
 
     // place tower
     money -= tower.cost;
     towers.add(tower);
     matrix.updatePaths();
-    if (!undo)
-        undoList.push(() => placeTower(x, y, 0, true));
+    if (!undo) undoList.push(() => placeTower(x, y, 0, true));
 }
 
 function drawGrid() {
@@ -624,13 +615,6 @@ function moveMonsters(time, deltaTime) {
         const {gridX, gridY} = pixel2grid(monster.x, monster.y);
         let {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
         let speed = monster.speed * gridPixelSize / 1000;
-        // if (destGridX === -42 && destGridY === -42) {
-        //     // monster is on a tower, move to closest grid cell
-        //     [diffX, diffY] = [[1,0],[0,1],[-1,0],[0,-1]].sort(diff => {
-        //         const {x_, y_} = grid2pixel(gridX + diff[0], gridY + diff[1]);
-        //         return Math.hypot(monster.x - x_, monster.y - y_);
-        //     })[0]
-        // }
         if (isNaN(destGridX) || isNaN(destGridY)) {
             // monster is trapped, calculate deterministic pseudorandom tilewise movement
             // direction is dependent of monster position, health, speed, id and game time. So it changes, if the monster gets damage or every 500ms
@@ -644,7 +628,7 @@ function moveMonsters(time, deltaTime) {
             } else if (destY > gridEndPixelY) {
                 destY = gridEndPixelY - gridPixelSize;
             }
-            // in theory, it could happen that the pseudorandom direction causes the monster to go through a diagonal wall
+            // TODO: in theory, it could happen that the pseudorandom direction causes the monster to go through a diagonal wall -> fix this
         } else {
             var {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
         }
