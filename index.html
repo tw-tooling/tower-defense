@@ -105,6 +105,40 @@ class BaseTower {
         const s = this.image_scale * gridPixelSize;
         ctx.drawImage(this.image, this.x-s/2, this.y-s/2, s, s);
     }
+
+    update(time, deltaTime) {
+        // reset current monsters if fire duration has passed
+        if (this.lastShot + this.fireDuration * 1000 < time) {
+            this.currentMonsters = [];
+        }
+
+        // fire shots
+        if (this.lastShot + 1000 / this.fireRate < time) {
+            this.lastShot = time;
+            // update monsters
+            const monstersInRange = monsters.filter(monster => Math.hypot(this.x - monster.x, this.y - monster.y) < this.range * gridPixelSize);
+            monstersInRange.sort((a, b) => Math.hypot(this.x - a.x, this.y - a.y) - Math.hypot(this.x - b.x, this.y - b.y));
+            this.currentMonsters = monstersInRange.slice(0, this.maxMonsters);
+            // fire shots
+            this.currentMonsters.forEach(monster => {
+                monster.health -= this.damage;
+                // kill monster
+                if (monster.health <= 0) {
+                    monsters.splice(monsters.indexOf(monster), 1);
+                    money += monster.reward;
+                    monsterKilled++;
+                    //  limiting the spawn interval to 1 second
+                    if (spawnInterval > 1000) {
+                        spawnInterval *= 0.997;
+                    } 
+                    healthMultiplier += 0.05;
+                // add slow
+                } else if (this.slow) {
+                    monster.slows.push({slow: this.slow, duration: this.slowDuration, time: time});
+                }
+            });
+        }
+    }
 }
 
 // remove tower tool, not a real tower
@@ -115,6 +149,14 @@ class RemoveTower {
         this.image = new Image();
         this.image.src = 'tiles/hammer.png';
         this.image_scale = 1;
+    }
+
+    draw() {
+        console.error("RemoveTower.draw() should not be called");
+    }
+
+    update() {
+        console.error("RemoveTower.update() should not be called");
     }
 }
 
@@ -145,6 +187,8 @@ class NoTower extends BaseTower {
             }
         })
     }
+
+    update() {} // do nothing
 }
 
 class SimpleTower extends BaseTower {
@@ -225,6 +269,7 @@ class BaseMonster {
         this.image = new Image();
         this.slows = [];
         this.id = numSpawnedMonsters++;
+        this.alive = true;
     }
 
     draw() {
@@ -240,6 +285,80 @@ class BaseMonster {
         ctx.fillRect(this.x-s/4, this.y-s/2, s/2, s/8);
         ctx.fillStyle = 'rgba(0, 196, 0, 0.6)';
         ctx.fillRect(this.x-s/4, this.y-s/2, s/2 * h, s/8);
+    }
+
+    update(time, deltaTime) {
+
+        // check status
+        if (this.health <= 0) return console.error("Monster health 0 or less", this);
+        if (!this.alive) return console.error("Monster already dead", this);
+
+        // get next destination
+        const {gridX, gridY} = pixel2grid(this.x, this.y);
+        let {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
+        let speed = this.speed * gridPixelSize / 1000;
+
+        // handle monster trapped
+        if (isNaN(destGridX) || isNaN(destGridY)) {
+            // monster is trapped, calculate deterministic pseudorandom tilewise movement
+            // direction is dependent of monster position, health, speed, id and game time. So it changes, if the monster gets damage or every 500ms
+            const t = ~~(gameTime/500);
+            const dir = ~~(gridX / (t%7+1) + gridY / (t%7+1) + this.health + t / (this.id%8+1+this.speed)) % 8;
+            const [tmp_x, tmp_y] = [[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]][dir];
+            var destX = this.x + tmp_x * gridPixelSize;
+            var destY = this.y + tmp_y * gridPixelSize;
+            if (destY < gridStartPixelY) {
+                destY = gridStartPixelY + gridPixelSize;
+            } else if (destY > gridEndPixelY) {
+                destY = gridEndPixelY - gridPixelSize;
+            }
+            // TODO: in theory, it could happen that the pseudorandom direction causes the monster to go through a diagonal wall -> fix this
+        } else {
+            var {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
+        }
+
+        // apply slows
+        this.slows = this.slows.filter(slow => (slow.time + slow.duration * 1000 > time));
+        this.slows.forEach(slow => { speed *= (1-slow.slow); });
+
+        // calculate new position
+        const destDist = Math.hypot(destX - this.x, destY - this.y);
+        const newX = this.x + speed * deltaTime * (destX - this.x) / destDist;
+        const newY = this.y + speed * deltaTime * (destY - this.y) / destDist;
+
+        // check if new position is valid
+        const {gridX: newGridX, gridY: newGridY} = pixel2grid(newX, newY);
+        if (newGridX < 0 || newGridX >= gridSizeX || newGridY < 0 || newGridY >= gridSizeY) {
+            // monster is out of bounds, this shouldn't happend
+            console.warn("Monster out of bounds", this, newGridX, newGridY);
+            return;
+        }
+        if (towers.getType(newGridX, newGridY) && !towers.getType(gridX, gridY)) {
+            // monster is on a tower and wasn't before
+            return;
+        }
+
+        // update position
+        this.x = newX;
+        this.y = newY;
+
+        // handle monster in goal
+        if (monsterPath.end.some(({gridX, gridY}) => (gridX === newGridX && gridY === newGridY))) {
+            lifes--;
+            this.alive = false;
+        }
+
+
+        // TODO: this might fail if speed or deltaTime is too high
+        // TODO: when moving diagonal the monsters sometimes (shortly) end up in neighboring tiles, which alters their movement
+
+        // draw path for debugging
+        // ctx.strokeStyle = "red";
+        // ctx.beginPath();
+        // ctx.moveTo(this.x, this.y);
+        // ctx.lineTo(destX, destY);
+        // ctx.stroke();
+
     }
 }
 
@@ -525,6 +644,7 @@ function placeTower(x, y, selected = currentSlectedTower, undo=false) {
     if (!undo) undoList.push(() => placeTower(x, y, 0, true));
 }
 
+
 function drawGrid() {
     ctx.strokeStyle = `rgba(0, 0, 0, 0.1)`;
     for (let i = 0; i <= gridSizeX; i++) {
@@ -547,11 +667,6 @@ function drawGrid() {
     }
 }
 
-
-// Function to draw towers
-function drawTowers() {
-    towers.forEach(tower => tower.draw());
-}
 
 
 let lastWaveTime = 0; // Track the last time a wave started or a break began
@@ -604,78 +719,19 @@ function spawnMonster(time) {
 }
 
 
-
-// Function to draw monsters
-function drawMonsters() {
-    monsters.forEach(monster => monster.draw());
-}
-
-
 // Function to move monsters
-function moveMonsters(time, deltaTime) {
-    monsters.forEach(monster => {
-        const {gridX, gridY} = pixel2grid(monster.x, monster.y);
-        let {x: destGridX, y: destGridY} = matrix.get(gridX, gridY);
-        let speed = monster.speed * gridPixelSize / 1000;
-        if (isNaN(destGridX) || isNaN(destGridY)) {
-            // monster is trapped, calculate deterministic pseudorandom tilewise movement
-            // direction is dependent of monster position, health, speed, id and game time. So it changes, if the monster gets damage or every 500ms
-            const t =  ~~(gameTime/500);
-            const dir = ~~(gridX / (t%7+1) + gridY / (t%7+1) + monster.health + t / (monster.id%8+1+monster.speed)) % 8;
-            const [tmp_x, tmp_y] = [[1,0],[0,1],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]][dir];
-            var destX = monster.x + tmp_x * gridPixelSize;
-            var destY = monster.y + tmp_y * gridPixelSize;
-            if (destY < gridStartPixelY) {
-                destY = gridStartPixelY + gridPixelSize;
-            } else if (destY > gridEndPixelY) {
-                destY = gridEndPixelY - gridPixelSize;
-            }
-            // TODO: in theory, it could happen that the pseudorandom direction causes the monster to go through a diagonal wall -> fix this
-        } else {
-            var {x: destX, y: destY} = grid2pixel(destGridX, destGridY);
-        }
-        const destDist = Math.hypot(destX - monster.x, destY - monster.y);
-        monster.slows = monster.slows.filter(slow => {
-            if (slow.time + slow.duration * 1000 > time) {
-                speed *= (1-slow.slow);
-                return true;
-            }
-            // remove outdated slows
-            return false;
-        });
+function updateMonsters(time, deltaTime) {
 
-        // calculate new position
-        const newX = monster.x + speed * deltaTime * (destX - monster.x) / destDist;
-        const newY = monster.y + speed * deltaTime * (destY - monster.y) / destDist;
+    // update monters (move, ...)
+    monsters.forEach(monster => monster.update(time, deltaTime));
+    
+    // remove dead monsters
+    const alive_monsters = monsters.filter(monster => monster.alive);
+    monsters.length = 0;
+    monsters.push(...alive_monsters);
 
-        // check if new position is valid
-        const {gridX: newGridX, gridY: newGridY} = pixel2grid(newX, newY);
-        if (newGridX < 0 || newGridX >= gridSizeX || newGridY < 0 || newGridY >= gridSizeY) {
-            // monster is out of bounds, this shouldn't happend
-            console.warn("Monster out of bounds", monster, newGridX, newGridY);
-            return;
-        }
-        if (towers.getType(newGridX, newGridY) && !towers.getType(gridX, gridY)) {
-            // monster is on a tower and wasn't before
-            return;
-        }
-
-        // update position
-        monster.x = newX;
-        monster.y = newY;
-        
-        // TODO: this might fail if speed or deltaTime is too high
-        // TODO: when moving diagonal the monsters sometimes (shortly) end up in neighboring tiles, which alters their movement
-
-        // draw path for debugging
-        // ctx.strokeStyle = "red";
-        // ctx.beginPath();
-        // ctx.moveTo(monster.x, monster.y);
-        // ctx.lineTo(destX, destY);
-        // ctx.stroke();
-
-    });
 }
+
 
 function drawShots() {
     towers.forEach(tower => {
@@ -688,65 +744,6 @@ function drawShots() {
             ctx.stroke();
         });
     });
-}
-
-
-// update lists of monsters targetted by towers
-function updateMonsters(time) {
-    towers.forEach(tower => {
-        // reset current monsters if fire duration has passed
-        if (tower.lastShot + tower.fireDuration * 1000 < time) {
-            tower.currentMonsters = [];
-        }
-        // fire shots
-        if (tower.lastShot + 1000 / tower.fireRate < time) {
-            tower.lastShot = time;
-            // update monsters
-            const monstersInRange = monsters.filter(monster => Math.hypot(tower.x - monster.x, tower.y - monster.y) < tower.range * gridPixelSize);
-            monstersInRange.sort((a, b) => Math.hypot(tower.x - a.x, tower.y - a.y) - Math.hypot(tower.x - b.x, tower.y - b.y));
-            tower.currentMonsters = monstersInRange.slice(0, tower.maxMonsters);
-            // fire shots
-            tower.currentMonsters.forEach(monster => {
-                monster.health -= tower.damage;
-                // kill monster
-                if (monster.health <= 0) {
-                    monsters.splice(monsters.indexOf(monster), 1);
-                    money += monster.reward;
-                    monsterKilled++;
-                    //  limiting the spawn interval to 1 second
-                    if (spawnInterval > 1000) {
-                        spawnInterval *= 0.997;
-                    } 
-                    healthMultiplier += 0.05;
-                // add slow
-                } else if (tower.slow) {
-                    monster.slows.push({slow: tower.slow, duration: tower.slowDuration, time: time});
-                }
-            });
-        }
-    });
-}
-
-
-// remove monsters in goal
-function monsterInGoal() {
-    new_monsters = [];
-    monsters.forEach(monster => {
-        const {gridX, gridY} = pixel2grid(monster.x, monster.y);
-        let inGoal = false;
-        monsterPath.end.forEach(end => {
-            if (gridX === end.gridX && gridY === end.gridY) {
-                inGoal = true;
-            }
-        });
-        if (inGoal) {
-            lifes--;
-        } else {
-            new_monsters.push(monster);
-        }
-    });
-    monsters.length = 0;
-    monsters.push(...new_monsters);
 }
 
 
@@ -929,9 +926,8 @@ function gameLoop(time) {
         deltaTimeLeft -= deltaTime;
         gameTime += deltaTime;
         spawnMonster(gameTime);
-        moveMonsters(gameTime, deltaTime);
-        updateMonsters(gameTime);
-        monsterInGoal();
+        updateMonsters(gameTime, deltaTime);
+        towers.forEach(tower => tower.update(gameTime, deltaTime));
         if (performance.now() - gameLoopStartTime > 1000 / 30) {
             console.log(`Game loop took too long, game is slowed down (skipped ${~~deltaTimeLeft}ms)`);
             break;
@@ -942,8 +938,8 @@ function gameLoop(time) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBackground();
     // drawGrid();  // debug
-    drawTowers();
-    drawMonsters();
+    towers.forEach(tower => tower.draw());
+    monsters.forEach(monster => monster.draw());
     drawShots();
     drawStartFog(totalDeltaTime);
     // drawDirections();  // debug
