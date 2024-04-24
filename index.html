@@ -100,6 +100,11 @@ class BaseTower {
         this.currentMonsters = [];
         this.image = new Image();
     }
+
+    draw() {
+        const s = this.image_scale * gridPixelSize;
+        ctx.drawImage(this.image, this.x-s/2, this.y-s/2, s, s);
+    }
 }
 
 // remove tower tool, not a real tower
@@ -126,6 +131,19 @@ class NoTower extends BaseTower {
         this.shotColor = "black";  // TODO: remove
         this.image.src = 'tiles/block.png';
         this.image_scale = 0.5;
+    }
+
+    draw() {
+        super.draw();
+        // draw connections to nearby walls
+        towers.forEach(other => {
+            if (other instanceof NoTower && Math.max(Math.abs(this.gridX - other.gridX), Math.abs(this.gridY - other.gridY)) === 1) {
+                const s = this.image_scale / 2 * gridPixelSize;
+                const diffX = other.gridX - this.gridX;
+                const diffY = other.gridY - this.gridY;
+                ctx.drawImage(this.image, this.x + diffX * s * 1.5 - s/2, this.y + diffY * s * 1.5 - s/2, s, s);
+            }
+        })
     }
 }
 
@@ -207,6 +225,21 @@ class BaseMonster {
         this.image = new Image();
         this.slows = [];
         this.id = numSpawnedMonsters++;
+    }
+
+    draw() {
+        ctx.beginPath();
+        const h = this.health / this.maxHealth;
+        
+        // monster image
+        const s = this.image_scale * gridPixelSize;
+        ctx.drawImage(this.image, this.x-s/2, this.y-s/2, s, s);
+
+        // health bar
+        ctx.fillStyle = 'rgba(196, 0, 0, 0.6)';
+        ctx.fillRect(this.x-s/4, this.y-s/2, s/2, s/8);
+        ctx.fillStyle = 'rgba(0, 196, 0, 0.6)';
+        ctx.fillRect(this.x-s/4, this.y-s/2, s/2 * h, s/8);
     }
 }
 
@@ -517,24 +550,7 @@ function drawGrid() {
 
 // Function to draw towers
 function drawTowers() {
-    towers.forEach(tower => {
-        // ctx.fillStyle = tower.color;
-        // ctx.fillRect(tower.x - gridPixelSize/2, tower.y - gridPixelSize/2, gridPixelSize, gridPixelSize);
-        const s = tower.image_scale * gridPixelSize;
-        ctx.drawImage(tower.image, tower.x-s/2, tower.y-s/2, s, s);
-
-        // for walls: draw connections to nearby walls
-        if (tower instanceof NoTower) {
-            towers.forEach(other => {
-                if (other instanceof NoTower && Math.max(Math.abs(tower.gridX - other.gridX), Math.abs(tower.gridY - other.gridY)) === 1) {
-                    const s = tower.image_scale / 2 * gridPixelSize;
-                    const diffX = other.gridX - tower.gridX;
-                    const diffY = other.gridY - tower.gridY;
-                    ctx.drawImage(tower.image, tower.x + diffX * s * 1.5 - s/2, tower.y + diffY * s * 1.5 - s/2, s, s);
-                }
-            })
-        }
-    });
+    towers.forEach(tower => tower.draw());
 }
 
 
@@ -591,24 +607,9 @@ function spawnMonster(time) {
 
 // Function to draw monsters
 function drawMonsters() {
-    monsters.forEach(monster => {
-        ctx.beginPath();
-        const h = monster.health / monster.maxHealth;
-        // ctx.fillStyle = `rgb(${(1-h)*200}, ${(1-h)*200}, ${(1-h)*200})`;
-        // ctx.arc(monster.x, monster.y, 8, 0, 2 * Math.PI);
-        // ctx.fill();
-        
-        // monster image
-        const s = monster.image_scale * gridPixelSize;
-        ctx.drawImage(monster.image, monster.x-s/2, monster.y-s/2, s, s);
-
-        // health bar
-        ctx.fillStyle = 'rgba(196, 0, 0, 0.6)'
-        ctx.fillRect(monster.x-s/4, monster.y-s/2, s/2, s/8);
-        ctx.fillStyle = 'rgba(0, 196, 0, 0.6)'
-        ctx.fillRect(monster.x-s/4, monster.y-s/2, s/2 * h, s/8);
-    });
+    monsters.forEach(monster => monster.draw());
 }
+
 
 // Function to move monsters
 function moveMonsters(time, deltaTime) {
