@@ -14,10 +14,24 @@
             background-color: #fff;
             cursor: url('tiles/cursor.png'), auto;
         }
+        ul {
+            width: 1200px;
+            margin: 1em auto;
+            font-family: Arial;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="1200" height="900"></canvas>
+    <ul>
+        <li>Left click to place a tower</li>
+        <li>Right click to remove a tower</li>
+        <li>click on tower icons or 0-5 to select a tower</li>
+        <li>click on pause button or escape to pause the game</li>
+        <li>click on undo button or z to undo the last action</li>
+        <li>hold space to speed up the game</li>
+    </ul>
     <script>
 
 // TODO:
@@ -47,6 +61,8 @@ const undoList = [];
 const mousePos = {x: 0, y: 0};
 let gameTime = 0;
 let lastTime = 0;
+let gameTimeFactor = 1;
+let gameTimeFactorIncreasing = false;
 const gridSizeX = 20;
 const gridSizeY = 12;
 const gridPixelSize = ctx.canvas.width / gridSizeX;
@@ -55,6 +71,7 @@ const gridStartPixelY = 180;
 const gridEndPixelX = ctx.canvas.width;
 const gridEndPixelY = gridStartPixelY + gridPixelSize * gridSizeY;
 let gamePaused = false;
+let gamePausedManually = false;
 
 // Game parameters
 const monsterPath = {
@@ -826,6 +843,7 @@ function drawStatus() {
     ctx.fillText("Money: " + money, 10, 60);
     ctx.fillText("Killed: " + monsterKilled, 250, 30);
     ctx.fillText((isInWave ? "Next break in " + ~~((waveDuration - (gameTime - lastWaveTime)) / 1000) + 's' : "Next wave in " + ~~((breakDuration - (gameTime - lastWaveTime)) / 1000) + 's'), 250, 60);
+    ctx.fillText("Game Speed: " + gameTimeFactor.toFixed(2) + "x", 500, 30);
 
     // draw available towers
     ctx.fillText("Available towers: ", 10, 90);
@@ -915,10 +933,16 @@ function drawMouse(time) {
 
 // Game loop
 function gameLoop(time) {
+    // calculate real deltaTime
     const gameLoopStartTime = performance.now();
     const totalDeltaTime = gamePaused ? 0 : time - lastTime;
-    let deltaTimeLeft = totalDeltaTime;
     lastTime = time;
+
+    // calculate game deltaTime
+    gameTimeFactor += gameTimeFactorIncreasing ? 3 * totalDeltaTime / 1000 : -15 * totalDeltaTime / 1000;
+    if (gameTimeFactor < 1) gameTimeFactor = 1;
+    if (gameTimeFactor > 10) gameTimeFactor = 10;
+    let deltaTimeLeft = gameTimeFactor * totalDeltaTime;
 
     // update game
     while (deltaTimeLeft > 0) {
@@ -930,6 +954,7 @@ function gameLoop(time) {
         towers.forEach(tower => tower.update(gameTime, deltaTime));
         if (performance.now() - gameLoopStartTime > 1000 / 30) {
             console.log(`Game loop took too long, game is slowed down (skipped ${~~deltaTimeLeft}ms)`);
+            gameTimeFactor -= deltaTimeLeft / totalDeltaTime;  // update gameTimeFactor to show actual game time, if game is lagging
             break;
         }
     }
@@ -966,6 +991,7 @@ canvas.addEventListener('click', function(event) {
         // pause button
         if (x > gridEndPixelX - 80 && x < gridEndPixelX - 40 && y > 20 && y < 60) {
             gamePaused = !gamePaused;
+            gamePausedManually = gamePaused;
         }
 
         // undo button
@@ -997,21 +1023,38 @@ document.addEventListener('keydown', function(event) {
         }
     });
 
-    // pause
+    // speed up (space)
     if (event.key === " ") {
-        gamePaused = !gamePaused;
+        gameTimeFactorIncreasing = true;
     }
 
-    // undo
+    // pause (escape)
+    if (event.key === "Escape") {
+        gamePaused = !gamePaused;
+        gamePausedManually = gamePaused;
+    }
+
+    // undo (z)
     if (event.key === "z") {
         const undo = undoList.pop();
         if (undo) undo();
     }
 });
 
+document.addEventListener('keyup', function(event) {
+    // disable speed up (space)
+    if (event.key === " ") {
+        gameTimeFactorIncreasing = false;
+    }
+});
+
 
 addEventListener('blur', function() {
     gamePaused = true;
+});
+
+addEventListener('focus', function() {
+    if (!gamePausedManually) gamePaused = false;
 });
 
 
