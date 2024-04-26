@@ -132,12 +132,15 @@ class BaseTower {
 
         // draw gun if available
         if (this.gunImage.src) {
-            if (this.currentMonsters.length > 0) {
-                const monster = this.currentMonsters[0];
+            // get angle to closest monster
+            if (monsters.length > 0 || this.currentMonsters.length > 0) {
+                // TODO: this might be slow, optimize if needed
+                const monster = this.currentMonsters.length > 0
+                    ? this.currentMonsters[0]
+                    : monsters.reduce((a, b) => Math.hypot(this.x - a.x, this.y - a.y) < Math.hypot(this.x - b.x, this.y - b.y) ? a : b);
                 const dx = monster.x - this.x;
                 const dy = monster.y - this.y;
-                const angle = Math.atan2(dy, dx);
-                this.lastGunAngle = angle;
+                this.lastGunAngle = Math.atan2(dy, dx);
             }
             let angle = this.lastGunAngle;
             ctx.save();
@@ -148,7 +151,7 @@ class BaseTower {
                 angle = -angle;
             }
             ctx.rotate(angle);
-            ctx.translate(-20, -15);
+            ctx.translate(-20, -10);
             ctx.drawImage(this.gunImage, 0, 0, 80, 80);
             ctx.restore();
         }
@@ -780,7 +783,10 @@ function drawShots() {
             ctx.strokeStyle = tower.shotColor;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(tower.x, tower.y);
+            const dist = Math.hypot(tower.x - monster.x, tower.y - monster.y);
+            const startX = tower.x + (monster.x - tower.x)/dist * gridPixelSize*0.8;
+            const startY = tower.y + (monster.y - tower.y)/dist * gridPixelSize*0.8;
+            ctx.moveTo(startX, startY);
             ctx.lineTo(monster.x, monster.y);
             ctx.stroke();
         });
@@ -977,7 +983,7 @@ function gameLoop(time) {
         updateMonsters(gameTime, deltaTime);
         towers.forEach(tower => tower.update(gameTime, deltaTime));
         if (performance.now() - gameLoopStartTime > 1000 / 30) {
-            console.log(`Game loop took too long, game is slowed down (skipped ${~~deltaTimeLeft}ms)`);
+            // console.log(`Game loop took too long, game is slowed down (skipped ${~~deltaTimeLeft}ms)`);
             gameTimeFactor -= deltaTimeLeft / totalDeltaTime;  // update gameTimeFactor to show actual game time, if game is lagging
             break;
         }
